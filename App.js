@@ -10,6 +10,8 @@ import CameraScreen from './src/camera/CameraScreen';
 import FamiliaScreen from './src/familia/FamiliaScreen';
 import PerfilScreen from './src/perfil/PerfilScreen';
 import { familiares as familiaresIniciais } from './src/dados/familiares';
+import SelecionarUsuario from './src/dados/selecionarUsuario';
+
 
 
 // App.js guarda o ESTADO principal:
@@ -17,22 +19,36 @@ import { familiares as familiaresIniciais } from './src/dados/familiares';
 // - tela: qual parte está aberta depois do login (menu | mapa | camera)
 export default function App() {
   const [autenticado, setAutenticado] = useState(false);
+  const [usuarioSelecionado, setUsuarioSelecionado] = useState(false);
   const [tela, setTela] = useState('menu');
   const [familiares, setFamiliares] = useState(familiaresIniciais);
 
   const voltarMenu = () => setTela('menu');
 
   // Enquanto não autenticar, só existe a tela de login.
-  if (!autenticado) {
-    return (
-      <SafeAreaProvider>
-        <View style={styles.container}>
-          <VerificaBiometria onAutenticado={() => setAutenticado(true)} />
-          <StatusBar style="auto" />
-        </View>
-      </SafeAreaProvider>
-    );
-  }
+ if (!autenticado) {
+  return (
+    <SafeAreaProvider>
+      <View style={styles.container}>
+        <VerificaBiometria onAutenticado={() => setAutenticado(true)} />
+        <StatusBar style="auto" />
+      </View>
+    </SafeAreaProvider>
+  );
+}
+
+if (!usuarioSelecionado) {
+  return (
+    <SafeAreaProvider>
+      <View style={styles.container}>
+        <SelecionarUsuario
+          onSelecionado={() => setUsuarioSelecionado(true)}
+        />
+        <StatusBar style="auto" />
+      </View>
+    </SafeAreaProvider>
+  );
+}
 
   let conteudo;
 

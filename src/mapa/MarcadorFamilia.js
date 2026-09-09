@@ -1,5 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
 import { Marker } from 'react-native-maps';
+import { StyleSheet, Text, View } from 'react-native';
 
 export default function MarcadorFamilia({ membro }) {
   return (
@@ -8,17 +8,28 @@ export default function MarcadorFamilia({ membro }) {
         latitude: membro.latitude,
         longitude: membro.longitude,
       }}
-      title={membro.nome}
+      title={membro.nome || 'Familiar'}
+      description={
+        membro.online
+          ? `${membro.parentesco} • Localização ativa`
+          : `${membro.parentesco} • Localização desativada`
+      }
     >
       <View style={styles.container}>
-        <View style={styles.ponto}>
+        <View style={styles.marcador}>
           <Text style={styles.inicial}>
-            {membro.nome.charAt(0).toUpperCase()}
-          </Text>
+  {(membro.nome || '?').charAt(0).toUpperCase()}
+</Text>
         </View>
 
         <View style={styles.nomeContainer}>
-          <Text style={styles.nome}>{membro.nome}</Text>
+          <Text style={styles.nome}>
+  {membro.nome || 'Familiar'}
+</Text>
+
+          <Text style={styles.status}>
+            {membro.online ? '🟢 Online' : '🔴 Offline'}
+          </Text>
         </View>
       </View>
     </Marker>
@@ -30,10 +41,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  ponto: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+  marcador: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#2563eb',
     justifyContent: 'center',
     alignItems: 'center',
@@ -48,16 +59,22 @@ const styles = StyleSheet.create({
   },
 
   nomeContainer: {
-    marginTop: 3,
+    marginTop: 4,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 8,
     backgroundColor: '#fff',
+    alignItems: 'center',
   },
 
   nome: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 'bold',
     color: '#111827',
+  },
+
+  status: {
+    fontSize: 10,
+    color: '#6b7280',
   },
 });
