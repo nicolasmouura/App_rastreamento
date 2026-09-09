@@ -1,15 +1,17 @@
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 import ListaMembros from './ListaMembros';
 import AdicionarMembro from './AdicionarMembro';
+import FormularioMembro from './FormularioMembro';
 
-export default function FamiliaScreen() {
+export default function FamiliaScreen({ familiares, setFamiliares }) {
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+
+
   const adicionarMembro = () => {
-    Alert.alert(
-      'Adicionar membro',
-      'Aqui vamos criar o sistema para adicionar um membro da família.'
-    );
-  };
+  setMostrarFormulario(true);
+};
 
   return (
     <View style={styles.container}>
@@ -19,9 +21,28 @@ export default function FamiliaScreen() {
         Pessoas que compartilham a localização com você
       </Text>
 
-      <ListaMembros />
+      <ListaMembros membros={familiares} />
 
-      <AdicionarMembro onPress={adicionarMembro} />
+{mostrarFormulario ? (
+  <FormularioMembro
+    onAdicionar={(novoMembro) => {
+      const membro = {
+        id: Date.now(),
+        nome: novoMembro.nome,
+        parentesco: novoMembro.parentesco,
+        latitude: -22.5245,
+        longitude: -43.6815,
+        online: false,
+      };
+
+      setFamiliares((atual) => [...atual, membro]);
+      setMostrarFormulario(false);
+    }}
+    onCancelar={() => setMostrarFormulario(false)}
+  />
+) : (
+  <AdicionarMembro onPress={adicionarMembro} />
+)}
     </View>
   );
 }

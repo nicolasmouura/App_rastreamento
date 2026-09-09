@@ -9,6 +9,7 @@ import TelaMapa from './src/mapa/TelaMapa';
 import CameraScreen from './src/camera/CameraScreen';
 import FamiliaScreen from './src/familia/FamiliaScreen';
 import PerfilScreen from './src/perfil/PerfilScreen';
+import { familiares as familiaresIniciais } from './src/dados/familiares';
 
 
 // App.js guarda o ESTADO principal:
@@ -17,6 +18,7 @@ import PerfilScreen from './src/perfil/PerfilScreen';
 export default function App() {
   const [autenticado, setAutenticado] = useState(false);
   const [tela, setTela] = useState('menu');
+  const [familiares, setFamiliares] = useState(familiaresIniciais);
 
   const voltarMenu = () => setTela('menu');
 
@@ -35,11 +37,16 @@ export default function App() {
   let conteudo;
 
   if (tela === 'mapa'){
-    conteudo = <TelaMapa />;
+    conteudo = <TelaMapa familiares={familiares} />;
   } else if (tela === 'camera'){
     conteudo = < CameraScreen />;
   } else if (tela === 'familia'){
-    conteudo = < FamiliaScreen />;
+    conteudo = (
+  <FamiliaScreen
+    familiares={familiares}
+    setFamiliares={setFamiliares}
+  />
+);
   } else if (tela === 'perfil'){
     conteudo = <PerfilScreen />;
   } else {

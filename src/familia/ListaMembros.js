@@ -1,32 +1,15 @@
 import { StyleSheet, View } from 'react-native';
 import MembroCard from './MembroCard';
 
-export default function ListaMembros() {
-  const membros = [
-    {
-      id: 1,
-      nome: 'João',
-      status: 'online',
-    },
-    {
-      id: 2,
-      nome: 'Maria',
-      status: 'online',
-    },
-    {
-      id: 3,
-      nome: 'Pedro',
-      status: 'offline',
-    },
-  ];
-
+export default function ListaMembros({ membros }) {
   return (
     <View style={styles.container}>
       {membros.map((membro) => (
         <MembroCard
           key={membro.id}
           nome={membro.nome}
-          status={membro.status}
+          parentesco={membro.parentesco}
+          online={membro.online}
         />
       ))}
     </View>

@@ -1,57 +1,46 @@
-import { StyleSheet, View } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { StyleSheet } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
+import MarcadorFamilia from './MarcadorFamilia';
 
-export default function Mapa({ location }) {
-  const lat = location ? location.latitude : -22.4093;
-  const lon = location ? location.longitude : -43.6641;
-
-  const mapHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-      <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; }
-        #map { width: 100%; height: 100%; }
-      </style>
-    </head>
-    <body>
-      <div id="map"></div>
-      <script>
-        var lat = ${lat};
-        var lon = ${lon};
-
-        var map = L.map('map').setView([lat, lon], 17);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
-
-        var marker = L.marker([lat, lon]).addTo(map);
-        marker.bindPopup("<b>Eu estou aqui!</b><br>Nosso local de aula.").openPopup();
-      </script>
-    </body>
-    </html>
-  `;
+export default function Mapa({ location, familiares }) {
+  const latitude = location?.latitude ?? -22.5245;
+  const longitude = location?.longitude ?? -43.6815;
 
   return (
-    <View style={styles.container}>
-      <WebView
-          key={location ? 'pronto' : 'carregando'}
-          source={{ html: mapHtml }}
-          style={styles.map}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          originWhitelist={['*']}
-      />
-    </View>
+    <MapView
+      style={styles.map}
+      initialRegion={{
+        latitude,
+        longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      }}
+    >
+      {/* Minha localização */}
+      {location && (
+        <Marker
+          coordinate={{
+            latitude: location.latitude,
+            longitude: location.longitude,
+          }}
+          title="Você"
+          description="Sua localização atual"
+        />
+      )}
+
+      {/* Familiar */}
+      {familiares.map((membro) => (
+  <MarcadorFamilia
+    key={membro.id}
+    membro={membro}
+  />
+))}
+    </MapView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
-  map: { flex: 1 },
+  map: {
+    flex: 1,
+  },
 });

@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
 import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
 import { StatusBar } from 'expo-status-bar';
@@ -8,7 +8,7 @@ import StatusLocalizacao from './StatusLocalizacao';
 // Igual ao App.js do ToDo: aqui fica o ESTADO e a LÓGICA
 // (pedir permissão, buscar localização). Os componentes filhos
 // (Mapa e StatusLocalizacao) só recebem dados via props.
-export default function TelaMapa() {
+export default function TelaMapa({ familiares }) {
   const [location, setLocation] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
 
@@ -35,7 +35,10 @@ export default function TelaMapa() {
   return (
     <View style={styles.container}>
       <StatusBar style="auto" hidden />
-      <Mapa location={location} />
+      <Mapa
+  location={location}
+  familiares={familiares}
+/>
       <StatusLocalizacao texto={texto} />
     </View>
   );
