@@ -1,0 +1,79 @@
+{
+  "expo": {
+    "name": "AppIntegrado",
+    "slug": "AppIntegrado",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Este app precisa acessar a câmera para tirar fotos."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "package": "com.exemplo.appintegrado",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBgjmy8AwBIF9nCbckz7N36X-ciqvSVsA0"
+        }
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Permitir $(PRODUCT_NAME) a usar o Face ID."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location.",
+          "isIosBackgroundLocationEnabled": true,
+          "locationAlwaysPermission": "Allow $(PRODUCT_NAME) to use your location.",
+          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location.",
+          "locationForegroundService": {
+            "notificationTitle": "Using your location",
+            "notificationBody": "To turn off, go back to the app and switch off the location."
+          },
+          "locationBackgroundPermission": "Allow $(PRODUCT_NAME) to use your location."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permita que o aplicativo utilize a câmera."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Permita que o aplicativo acesse suas fotos.",
+          "savePhotosPermission": "Permita que o aplicativo salve fotos na galeria.",
+          "granularPermissions": [
+            "photo"
+          ]
+        }
+      ]
+    ]
+  }
+}
