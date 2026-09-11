@@ -9,105 +9,85 @@ import { observarFamiliares } from '../dados/buscarFamiliares';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
-import { buscarUsuario, salvarUsuario } from '../dados/usuario';
-
-export default function TelaMapa() {
+export default function TelaMapa({ usuario, grupoId }) {
   const [location, setLocation] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   const [familiares, setFamiliares] = useState([]);
-  const [uidUsuario, setUidUsuario] = useState(null);
-
-  // Usuário deste aparelho
-  useEffect(() => {
-  async function carregarUsuario() {
-    let uid = await buscarUsuario();
-
-    if (!uid) {
-      await salvarUsuario('joao-001');
-      uid = 'joao-001';
-      console.log('Usuário criado neste aparelho:', uid);
-    }
-
-    setUidUsuario(uid);
-
-    console.log('Usuário deste aparelho:', uid);
-  }
-
-  carregarUsuario();
-}, []);
 
   // Rastreamento da localização
-useEffect(() => {
-  if (!uidUsuario) {
-    return;
-  }
-
-  let subscription;
-
-  async function iniciarRastreamento() {
-    const { status } =
-      await Location.requestForegroundPermissionsAsync();
-
-    if (status !== 'granted') {
-      setErrorMsg('Permissão da localização negada!');
+  useEffect(() => {
+    if (!usuario?.uid) {
       return;
     }
 
-    subscription = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 5000,
-        distanceInterval: 10,
-      },
-      async (novaLocalizacao) => {
-        const coordenadas = novaLocalizacao.coords;
+    let subscription;
 
-        setLocation(coordenadas);
+    async function iniciarRastreamento() {
+      const { status } =
+        await Location.requestForegroundPermissionsAsync();
 
-        try {
-          await setDoc(
-            doc(db, 'familiares', uidUsuario),
-            {
-              latitude: coordenadas.latitude,
-              longitude: coordenadas.longitude,
-              online: true,
-            },
-            { merge: true }
-          );
-
-          console.log(
-            'Localização atualizada para:',
-            uidUsuario,
-            coordenadas.latitude,
-            coordenadas.longitude
-          );
-        } catch (erro) {
-          console.error(
-            'Erro ao atualizar localização:',
-            erro
-          );
-        }
+      if (status !== 'granted') {
+        setErrorMsg('Permissão da localização negada!');
+        return;
       }
-    );
-  }
 
-  iniciarRastreamento();
+      subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 5000,
+          distanceInterval: 10,
+        },
+        async (novaLocalizacao) => {
+          const coordenadas = novaLocalizacao.coords;
 
-  return () => {
-    if (subscription) {
-      subscription.remove();
+          setLocation(coordenadas);
+
+          try {
+            await setDoc(
+              doc(db, 'familiares', usuario.uid),
+              {
+                nome: usuario.nome,
+                grupoId: grupoId,
+                latitude: coordenadas.latitude,
+                longitude: coordenadas.longitude,
+                online: true,
+              },
+              { merge: true }
+            );
+
+            console.log(
+              'Localização atualizada para:',
+              usuario.uid,
+              coordenadas.latitude,
+              coordenadas.longitude
+            );
+          } catch (erro) {
+            console.error(
+              'Erro ao atualizar localização:',
+              erro
+            );
+          }
+        }
+      );
     }
-  };
-}, [uidUsuario]);
+
+    iniciarRastreamento();
+
+    return () => {
+      if (subscription) {
+        subscription.remove();
+      }
+    };
+  }, [usuario, grupoId]);
 
   // Familiares vindos do Firebase em tempo real
   useEffect(() => {
-    const cancelar = observarFamiliares((dados) => {
+    const cancelar = observarFamiliares(grupoId, (dados) => {
       setFamiliares(dados);
     });
 
     return () => cancelar();
-  }, []);
+  }, [grupoId]);
 
   let texto = 'Aguarde...';
 

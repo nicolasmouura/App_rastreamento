@@ -1,30 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import ListaMembros from './ListaMembros';
 import AdicionarMembro from './AdicionarMembro';
 import FormularioMembro from './FormularioMembro';
 
-import { useEffect } from 'react';
 import { observarFamiliares } from '../dados/buscarFamiliares';
 
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
-export default function FamiliaScreen({ familiares, setFamiliares }) {
+export default function FamiliaScreen({ familiares, setFamiliares, grupoId }) {
   useEffect(() => {
-  const cancelar = observarFamiliares((dados) => {
-    setFamiliares(dados);
-  });
+    const cancelar = observarFamiliares(grupoId, (dados) => {
+      setFamiliares(dados);
+    });
 
-  return () => cancelar();
-}, []);
+    return () => cancelar();
+  }, [grupoId]);
+
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
-
   const adicionarMembro = () => {
-  setMostrarFormulario(true);
-};
+    setMostrarFormulario(true);
+  };
 
   return (
     <View style={styles.container}>
@@ -36,42 +35,43 @@ export default function FamiliaScreen({ familiares, setFamiliares }) {
 
       <ListaMembros membros={familiares} />
 
-{mostrarFormulario ? (
-  <FormularioMembro
-    onAdicionar={async (novoMembro) => {
-  try {
-    const membro = {
-      uid: `membro-${Date.now()}`,
-      nome: novoMembro.nome,
-      parentesco: novoMembro.parentesco,
-      latitude: -22.5245,
-      longitude: -43.6815,
-      online: false,
-    };
+      {mostrarFormulario ? (
+        <FormularioMembro
+          onAdicionar={async (novoMembro) => {
+            try {
+              const membro = {
+                uid: `membro-${Date.now()}`,
+                grupoId: grupoId,
+                nome: novoMembro.nome,
+                parentesco: novoMembro.parentesco,
+                latitude: -22.5245,
+                longitude: -43.6815,
+                online: false,
+              };
 
-    const documento = await addDoc(
-      collection(db, 'familiares'),
-      membro
-    );
+              const documento = await addDoc(
+                collection(db, 'familiares'),
+                membro
+              );
 
-    const membroSalvo = {
-      id: documento.id,
-      ...membro,
-    };
+              const membroSalvo = {
+                id: documento.id,
+                ...membro,
+              };
 
-    setFamiliares((atual) => [...atual, membroSalvo]);
-    setMostrarFormulario(false);
+              setFamiliares((atual) => [...atual, membroSalvo]);
+              setMostrarFormulario(false);
 
-    console.log('Membro salvo no Firebase:', membroSalvo);
-  } catch (erro) {
-    console.error('Erro ao salvar membro:', erro);
-  }
-}}
-    onCancelar={() => setMostrarFormulario(false)}
-  />
-) : (
-  <AdicionarMembro onPress={adicionarMembro} />
-)}
+              console.log('Membro salvo no Firebase:', membroSalvo);
+            } catch (erro) {
+              console.error('Erro ao salvar membro:', erro);
+            }
+          }}
+          onCancelar={() => setMostrarFormulario(false)}
+        />
+      ) : (
+        <AdicionarMembro onPress={adicionarMembro} />
+      )}
     </View>
   );
 }

@@ -5,7 +5,7 @@ import DadosUsuario from './DadosUsuario';
 import Configuracoes from './Configuracoes';
 import CameraScreen from '../camera/CameraScreen';
 
-export default function PerfilScreen() {
+export default function PerfilScreen({ usuario }) {
   const [abrirCamera, setAbrirCamera] = useState(false);
   const [fotoPerfil, setFotoPerfil] = useState(null);
 
@@ -36,6 +36,7 @@ export default function PerfilScreen() {
       <Text style={styles.title}>Meu Perfil</Text>
 
       <DadosUsuario
+        usuario={usuario}
         foto={fotoPerfil}
         onAlterarFoto={abrirCameraPerfil}
       />

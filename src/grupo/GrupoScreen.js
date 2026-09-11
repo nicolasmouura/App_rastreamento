@@ -210,7 +210,7 @@ export default function GrupoScreen({
 
         <TouchableOpacity
           style={styles.botao}
-          onPress={onGrupoConcluido}
+          onPress={() => onGrupoConcluido(grupoCriado.id)}
         >
           <Text style={styles.botaoTexto}>
             Continuar

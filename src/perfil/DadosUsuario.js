@@ -1,6 +1,6 @@
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export default function DadosUsuario({ foto, onAlterarFoto }) {
+export default function DadosUsuario({ usuario, foto, onAlterarFoto }) {
   return (
     <View style={styles.container}>
 
@@ -22,11 +22,11 @@ export default function DadosUsuario({ foto, onAlterarFoto }) {
       </TouchableOpacity>
 
       <Text style={styles.nome}>
-        Gabriel
+        {usuario?.nome || 'Usuário'}
       </Text>
 
       <Text style={styles.email}>
-        usuario@email.com
+        {usuario?.email || ''}
       </Text>
 
     </View>

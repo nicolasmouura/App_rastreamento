@@ -1,4 +1,3 @@
-```js
 import { useEffect, useState } from 'react';
 
 import {
@@ -35,8 +34,14 @@ import GrupoScreen from './src/grupo/GrupoScreen';
 
 export default function App() {
 
-  // Usuário logado
+  // Usuário logado (vindo do login/cadastro)
   const [usuario, setUsuario] = useState(null);
+
+  // Dados reais do perfil (nome/email) vindos do Firestore
+  const [perfil, setPerfil] = useState(null);
+
+  // Id do grupo familiar do usuário
+  const [grupoId, setGrupoId] = useState(null);
 
   // Grupo do usuário
   const [temGrupo, setTemGrupo] = useState(false);
@@ -54,7 +59,8 @@ export default function App() {
 
 
   /*
-   * Verifica se o usuário já possui um grupo.
+   * Verifica se o usuário já possui um grupo
+   * e busca os dados reais do perfil (nome/email).
    */
   useEffect(() => {
 
@@ -80,6 +86,12 @@ export default function App() {
 
           const dadosUsuario = resultado.data();
 
+          setPerfil({
+            uid: usuario.uid,
+            nome: dadosUsuario.nome,
+            email: dadosUsuario.email,
+          });
+
           if (dadosUsuario.grupoId) {
 
             console.log(
@@ -87,6 +99,7 @@ export default function App() {
               dadosUsuario.grupoId
             );
 
+            setGrupoId(dadosUsuario.grupoId);
             setTemGrupo(true);
 
           } else {
@@ -95,6 +108,7 @@ export default function App() {
               'Usuário ainda não possui grupo.'
             );
 
+            setGrupoId(null);
             setTemGrupo(false);
           }
 
@@ -104,6 +118,14 @@ export default function App() {
             'Perfil do usuário não encontrado.'
           );
 
+          // Ainda assim mostramos o que temos (ex.: login sem doc criado)
+          setPerfil({
+            uid: usuario.uid,
+            nome: usuario.nome || usuario.displayName || 'Usuário',
+            email: usuario.email,
+          });
+
+          setGrupoId(null);
           setTemGrupo(false);
         }
 
@@ -208,12 +230,13 @@ export default function App() {
 
           <GrupoScreen
             usuario={usuario}
-            onGrupoConcluido={() => {
+            onGrupoConcluido={(novoGrupoId) => {
 
               console.log(
                 'Grupo concluído.'
               );
 
+              setGrupoId(novoGrupoId);
               setTemGrupo(true);
 
             }}
@@ -237,11 +260,13 @@ export default function App() {
   let conteudo;
 
 
-  if (tela === 'mapa') {
+    if (tela === 'mapa') {
 
     conteudo = (
       <TelaMapa
         familiares={familiares}
+        usuario={perfil}
+        grupoId={grupoId}
       />
     );
 
@@ -257,13 +282,16 @@ export default function App() {
       <FamiliaScreen
         familiares={familiares}
         setFamiliares={setFamiliares}
+        grupoId={grupoId}
       />
     );
 
   } else if (tela === 'perfil') {
 
     conteudo = (
-      <PerfilScreen />
+      <PerfilScreen
+        usuario={perfil}
+      />
     );
 
   } else {
@@ -360,4 +388,3 @@ const styles = StyleSheet.create({
   },
 
 });
-```
