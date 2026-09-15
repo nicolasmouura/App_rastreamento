@@ -46,6 +46,9 @@ export default function App() {
   // Grupo do usuário
   const [temGrupo, setTemGrupo] = useState(false);
 
+    // Usuário optou por pular a criação/entrada em grupo por agora
+  const [pulouGrupo, setPulouGrupo] = useState(false);
+
   // Verificação do grupo ainda não terminou
   const [verificandoGrupo, setVerificandoGrupo] = useState(false);
 
@@ -221,7 +224,7 @@ export default function App() {
    * Criar grupo
    * Entrar com código
    */
-  if (!temGrupo) {
+  if (!temGrupo && !pulouGrupo) {
 
     return (
       <SafeAreaProvider>
@@ -240,6 +243,9 @@ export default function App() {
               setTemGrupo(true);
 
             }}
+            
+            onPular={() => setPulouGrupo(true)}
+            
           />
 
           <StatusBar style="auto" />

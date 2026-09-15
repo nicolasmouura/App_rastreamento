@@ -19,6 +19,7 @@ import { salvarGrupoNoUsuario } from '../dados/salvarUsuario';
 export default function GrupoScreen({
   usuario,
   onGrupoConcluido,
+  onPular,
 }) {
   const [criando, setCriando] = useState(false);
   const [entrando, setEntrando] = useState(false);
@@ -331,7 +332,7 @@ export default function GrupoScreen({
   // TELA PRINCIPAL
   // =====================================================
 
-  return (
+    return (
     <View style={styles.container}>
 
       <Text style={styles.titulo}>
@@ -363,6 +364,15 @@ export default function GrupoScreen({
       >
         <Text style={styles.botaoSecundarioTexto}>
           Entrar com código de convite
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.botaoPular}
+        onPress={onPular}
+      >
+        <Text style={styles.botaoPularTexto}>
+          Pular por agora
         </Text>
       </TouchableOpacity>
 
@@ -433,6 +443,15 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontSize: 17,
     fontWeight: 'bold',
+  },
+
+  botaoPular: {
+    padding: 12,
+  },
+
+  botaoPularTexto: {
+    color: '#9ca3af',
+    fontSize: 15,
   },
 
   erro: {
