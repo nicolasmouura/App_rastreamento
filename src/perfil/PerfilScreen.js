@@ -7,34 +7,43 @@ import DadosUsuario from './DadosUsuario';
 import Configuracoes from './Configuracoes';
 import CameraScreen from '../camera/CameraScreen';
 
-const CHAVE_FOTO = '@appintegrado:fotoPerfil';
-
-export default function PerfilScreen() {
+export default function PerfilScreen({ usuario }) {
   const [abrirCamera, setAbrirCamera] = useState(false);
   const [fotoPerfil, setFotoPerfil] = useState(null);
 
-  // Carrega a foto salva assim que a tela monta (inclusive depois de reabrir o app)
+  const chaveFoto = usuario?.uid
+    ? `@appintegrado:fotoPerfil:${usuario.uid}`
+    : null;
+
+  // Carrega a foto salva desse usuário específico assim que a tela monta
   useEffect(() => {
     async function carregarFotoSalva() {
+      if (!chaveFoto) {
+        setFotoPerfil(null);
+        return;
+      }
+
       try {
-        const uriSalva = await AsyncStorage.getItem(CHAVE_FOTO);
-        if (uriSalva) {
-          setFotoPerfil(uriSalva);
-        }
+        const uriSalva = await AsyncStorage.getItem(chaveFoto);
+        setFotoPerfil(uriSalva || null);
       } catch (error) {
         console.error('Erro ao carregar foto salva:', error);
       }
     }
 
     carregarFotoSalva();
-  }, []);
+  }, [chaveFoto]);
 
   // Salva a foto tanto no estado (pra aparecer na hora) quanto no AsyncStorage (pra persistir)
   async function salvarFoto(uri) {
     setFotoPerfil(uri);
 
+    if (!chaveFoto) {
+      return;
+    }
+
     try {
-      await AsyncStorage.setItem(CHAVE_FOTO, uri);
+      await AsyncStorage.setItem(chaveFoto, uri);
     } catch (error) {
       console.error('Erro ao salvar foto:', error);
       Alert.alert('Erro', 'Não foi possível salvar a foto.');
