@@ -4,13 +4,18 @@ import { StyleSheet, Text, View } from 'react-native';
 import ListaMembros from './ListaMembros';
 import AdicionarMembro from './AdicionarMembro';
 import FormularioMembro from './FormularioMembro';
+import CodigoConvite from './CodigoConvite';
 
 import { observarFamiliares } from '../dados/buscarFamiliares';
+import { buscarGrupoPorId } from '../dados/grupo';
 
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
-export default function FamiliaScreen({ familiares, setFamiliares, grupoId }) {
+export default function FamiliaScreen({ familiares, setFamiliares, grupoId, usuario }) {
+  const [grupoInfo, setGrupoInfo] = useState(null);
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+
   useEffect(() => {
     const cancelar = observarFamiliares(grupoId, (dados) => {
       setFamiliares(dados);
@@ -19,7 +24,18 @@ export default function FamiliaScreen({ familiares, setFamiliares, grupoId }) {
     return () => cancelar();
   }, [grupoId]);
 
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  useEffect(() => {
+    async function carregarGrupo() {
+      const grupo = await buscarGrupoPorId(grupoId);
+      setGrupoInfo(grupo);
+    }
+
+    if (grupoId) {
+      carregarGrupo();
+    }
+  }, [grupoId]);
+
+  const souHost = grupoInfo?.administradorUid === usuario?.uid;
 
   const adicionarMembro = () => {
     setMostrarFormulario(true);
@@ -32,6 +48,13 @@ export default function FamiliaScreen({ familiares, setFamiliares, grupoId }) {
       <Text style={styles.subtitle}>
         Pessoas que compartilham a localização com você
       </Text>
+
+      {souHost && grupoInfo && (
+        <CodigoConvite
+          codigo={grupoInfo.codigoConvite}
+          nomeGrupo={grupoInfo.nome}
+        />
+      )}
 
       <ListaMembros membros={familiares} />
 

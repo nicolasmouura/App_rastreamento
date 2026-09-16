@@ -245,7 +245,7 @@ export default function App() {
             }}
             
             onPular={() => setPulouGrupo(true)}
-            
+
           />
 
           <StatusBar style="auto" />
@@ -289,6 +289,7 @@ export default function App() {
         familiares={familiares}
         setFamiliares={setFamiliares}
         grupoId={grupoId}
+        usuario={perfil}
       />
     );
 
