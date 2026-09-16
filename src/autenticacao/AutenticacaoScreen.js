@@ -7,7 +7,6 @@ import {
   View,
 } from 'react-native';
 
-
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -15,6 +14,7 @@ import {
 
 import { auth } from '../config/firebase';
 import { salvarPerfilUsuario } from '../dados/salvarUsuario';
+import { cores, fontes, raio } from '../theme/theme';
 
 export default function AutenticacaoScreen({ onAutenticado }) {
   const [modoCadastro, setModoCadastro] = useState(true);
@@ -38,23 +38,23 @@ export default function AutenticacaoScreen({ onAutenticado }) {
           return;
         }
 
-const resultado = await createUserWithEmailAndPassword(
-  auth,
-  email.trim(),
-  senha
-);
+        const resultado = await createUserWithEmailAndPassword(
+          auth,
+          email.trim(),
+          senha
+        );
 
-const usuario = {
-  uid: resultado.user.uid,
-  nome: nome.trim(),
-  email: resultado.user.email,
-};
+        const usuario = {
+          uid: resultado.user.uid,
+          nome: nome.trim(),
+          email: resultado.user.email,
+        };
 
-await salvarPerfilUsuario(usuario);
+        await salvarPerfilUsuario(usuario);
 
-console.log('Conta criada:', usuario.uid);
+        console.log('Conta criada:', usuario.uid);
 
-onAutenticado(usuario);
+        onAutenticado(usuario);
       } else {
         const resultado = await signInWithEmailAndPassword(
           auth,
@@ -104,6 +104,7 @@ onAutenticado(usuario);
         <TextInput
           style={styles.input}
           placeholder="Seu nome"
+          placeholderTextColor={cores.textoSecundario}
           value={nome}
           onChangeText={setNome}
         />
@@ -112,6 +113,7 @@ onAutenticado(usuario);
       <TextInput
         style={styles.input}
         placeholder="E-mail"
+        placeholderTextColor={cores.textoSecundario}
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
@@ -121,6 +123,7 @@ onAutenticado(usuario);
       <TextInput
         style={styles.input}
         placeholder="Senha"
+        placeholderTextColor={cores.textoSecundario}
         value={senha}
         onChangeText={setSenha}
         secureTextEntry
@@ -131,7 +134,7 @@ onAutenticado(usuario);
       ) : null}
 
       <TouchableOpacity
-        style={styles.botao}
+        style={[styles.botao, carregando && styles.botaoDesabilitado]}
         onPress={continuar}
         disabled={carregando}
       >
@@ -165,56 +168,63 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 25,
-    backgroundColor: '#fff',
+    backgroundColor: cores.fundo,
   },
 
   titulo: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 26,
+    fontFamily: fontes.titulo,
+    color: cores.texto,
     textAlign: 'center',
     marginBottom: 10,
   },
 
   subtitulo: {
-    fontSize: 18,
+    fontSize: 16,
     textAlign: 'center',
-    color: '#6b7280',
+    color: cores.textoSecundario,
     marginBottom: 30,
   },
 
   input: {
     width: '100%',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
+    borderColor: cores.borda,
+    borderRadius: raio.botaoSecundario + 4,
     padding: 14,
     marginBottom: 12,
     fontSize: 16,
+    backgroundColor: cores.superficie,
+    color: cores.texto,
   },
 
   botao: {
-    backgroundColor: '#2563eb',
+    backgroundColor: cores.primaria,
     padding: 16,
-    borderRadius: 10,
+    borderRadius: raio.pilula,
     alignItems: 'center',
     marginTop: 8,
     marginBottom: 18,
   },
 
+  botaoDesabilitado: {
+    opacity: 0.7,
+  },
+
   botaoTexto: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: 'bold',
+    color: cores.textoSobrePrimaria,
+    fontSize: 16,
+    fontFamily: fontes.destaque,
   },
 
   alternar: {
     textAlign: 'center',
-    color: '#2563eb',
+    color: cores.primaria,
     fontSize: 15,
   },
 
   erro: {
-    color: '#dc2626',
+    color: cores.erro,
     textAlign: 'center',
     marginBottom: 10,
   },

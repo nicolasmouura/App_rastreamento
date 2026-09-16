@@ -1,4 +1,6 @@
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { cores, fontes } from '../theme/theme';
 
 export default function DadosUsuario({ usuario, foto, onAlterarFoto }) {
   return (
@@ -11,13 +13,14 @@ export default function DadosUsuario({ usuario, foto, onAlterarFoto }) {
             style={styles.imagem}
           />
         ) : (
-          <Text style={styles.icone}>👤</Text>
+          <Feather name="user" size={44} color={cores.textoSecundario} />
         )}
       </View>
 
-      <TouchableOpacity onPress={onAlterarFoto}>
+      <TouchableOpacity style={styles.alterarFotoBotao} onPress={onAlterarFoto}>
+        <Feather name="camera" size={15} color={cores.primaria} />
         <Text style={styles.alterarFoto}>
-          📷 Alterar foto
+          Alterar foto
         </Text>
       </TouchableOpacity>
 
@@ -43,7 +46,7 @@ const styles = StyleSheet.create({
     width: 110,
     height: 110,
     borderRadius: 55,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: cores.superficieAlternativa,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -54,26 +57,29 @@ const styles = StyleSheet.create({
     height: '100%',
   },
 
-  icone: {
-    fontSize: 45,
+  alterarFotoBotao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
   },
 
   alterarFoto: {
-    color: '#2563eb',
+    color: cores.primaria,
     fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 12,
+    fontFamily: fontes.destaque,
   },
 
   nome: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontFamily: fontes.titulo,
+    color: cores.texto,
     marginTop: 20,
   },
 
   email: {
     fontSize: 15,
-    color: '#6b7280',
+    color: cores.textoSecundario,
     marginTop: 5,
   },
 });

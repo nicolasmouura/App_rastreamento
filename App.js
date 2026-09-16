@@ -13,6 +13,8 @@ import {
 
 import { StatusBar } from 'expo-status-bar';
 
+import { useFonts, Poppins_700Bold, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
+
 import {
   doc,
   getDoc,
@@ -31,8 +33,15 @@ import { familiares as familiaresIniciais } from './src/dados/familiares';
 import AutenticacaoScreen from './src/autenticacao/AutenticacaoScreen';
 import GrupoScreen from './src/grupo/GrupoScreen';
 
+import { cores, fontes, raio } from './src/theme/theme';
+
 
 export default function App() {
+
+  const [fontsLoaded] = useFonts({
+    Poppins_700Bold,
+    Poppins_600SemiBold,
+  });
 
   // Usuário logado (vindo do login/cadastro)
   const [usuario, setUsuario] = useState(null);
@@ -150,6 +159,11 @@ export default function App() {
     verificarGrupo();
 
   }, [usuario]);
+
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
 
   /*
@@ -290,6 +304,10 @@ export default function App() {
         setFamiliares={setFamiliares}
         grupoId={grupoId}
         usuario={perfil}
+        onGrupoConcluido={(novoGrupoId) => {
+          setGrupoId(novoGrupoId);
+          setTemGrupo(true);
+        }}
       />
     );
 
@@ -351,7 +369,7 @@ const styles = StyleSheet.create({
 
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: cores.fundo,
   },
 
 
@@ -359,13 +377,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: cores.fundo,
   },
 
 
   carregandoTexto: {
-    fontSize: 17,
-    color: '#6b7280',
+    fontSize: 16,
+    color: cores.textoSecundario,
   },
 
 
@@ -380,9 +398,9 @@ const styles = StyleSheet.create({
 
     paddingVertical: 8,
 
-    borderRadius: 20,
+    borderRadius: raio.pilula,
 
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(31, 42, 46, 0.75)',
 
     zIndex: 20,
   },
@@ -391,7 +409,9 @@ const styles = StyleSheet.create({
   voltarText: {
     color: '#fff',
 
-    fontWeight: 'bold',
+    fontFamily: fontes.destaque,
+
+    fontSize: 14,
   },
 
 });

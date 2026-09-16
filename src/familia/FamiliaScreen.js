@@ -5,18 +5,28 @@ import ListaMembros from './ListaMembros';
 import AdicionarMembro from './AdicionarMembro';
 import FormularioMembro from './FormularioMembro';
 import CodigoConvite from './CodigoConvite';
+import GrupoScreen from '../grupo/GrupoScreen';
 
 import { observarFamiliares } from '../dados/buscarFamiliares';
 import { buscarGrupoPorId } from '../dados/grupo';
 
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { cores, fontes } from '../theme/theme';
 
-export default function FamiliaScreen({ familiares, setFamiliares, grupoId, usuario }) {
+export default function FamiliaScreen({
+  familiares,
+  setFamiliares,
+  grupoId,
+  usuario,
+  onGrupoConcluido,
+}) {
   const [grupoInfo, setGrupoInfo] = useState(null);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
   useEffect(() => {
+    if (!grupoId) return;
+
     const cancelar = observarFamiliares(grupoId, (dados) => {
       setFamiliares(dados);
     });
@@ -34,6 +44,15 @@ export default function FamiliaScreen({ familiares, setFamiliares, grupoId, usua
       carregarGrupo();
     }
   }, [grupoId]);
+
+  if (!grupoId) {
+    return (
+      <GrupoScreen
+        usuario={usuario}
+        onGrupoConcluido={onGrupoConcluido}
+      />
+    );
+  }
 
   const souHost = grupoInfo?.administradorUid === usuario?.uid;
 
@@ -104,19 +123,20 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingTop: 60,
-    backgroundColor: '#fff',
+    backgroundColor: cores.fundo,
   },
 
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 26,
+    fontFamily: fontes.titulo,
+    color: cores.texto,
     marginBottom: 8,
   },
 
   subtitle: {
     width: '90%',
     textAlign: 'center',
-    color: '#6b7280',
+    color: cores.textoSecundario,
     marginBottom: 25,
   },
 });

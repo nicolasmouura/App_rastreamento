@@ -1,5 +1,6 @@
 import { Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { cores, fontes, raio } from '../theme/theme';
 
 export default function PreviewModal({
   visible,
@@ -64,8 +65,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 30,
     color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontFamily: fontes.destaque,
   },
 
   previewImage: {
@@ -83,28 +84,29 @@ const styles = StyleSheet.create({
   secondaryButton: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 10,
-    backgroundColor: '#374151',
+    borderRadius: raio.botaoSecundario,
+    borderWidth: 1,
+    borderColor: '#fff',
     alignItems: 'center',
   },
 
   primaryButton: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 10,
-    backgroundColor: '#2563eb',
+    borderRadius: raio.pilula,
+    backgroundColor: cores.primaria,
     alignItems: 'center',
   },
 
   secondaryButtonText: {
     color: '#fff',
     fontSize: 15,
-    fontWeight: 'bold',
+    fontFamily: fontes.destaque,
   },
 
   primaryButtonText: {
-    color: '#fff',
+    color: cores.textoSobrePrimaria,
     fontSize: 15,
-    fontWeight: 'bold',
+    fontFamily: fontes.destaque,
   },
 });

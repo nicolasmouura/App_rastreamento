@@ -15,6 +15,7 @@ import {
 } from '../dados/grupo';
 
 import { salvarGrupoNoUsuario } from '../dados/salvarUsuario';
+import { cores, fontes, raio } from '../theme/theme';
 
 export default function GrupoScreen({
   usuario,
@@ -52,6 +53,7 @@ export default function GrupoScreen({
         <TextInput
           style={styles.input}
           placeholder="Ex: TSG9FW"
+          placeholderTextColor={cores.textoSecundario}
           value={codigoConvite}
           onChangeText={(texto) => {
             setCodigoConvite(
@@ -88,7 +90,6 @@ export default function GrupoScreen({
               setErro('');
               setCarregando(true);
 
-              // Procura o grupo pelo código
               const grupo =
                 await procurarGrupoPorCodigo(
                   codigo
@@ -111,7 +112,6 @@ export default function GrupoScreen({
                 grupo.nome
               );
 
-              // Cria a solicitação de entrada
               await solicitarEntrada(
                 grupo.id,
                 usuario
@@ -188,7 +188,7 @@ export default function GrupoScreen({
       <View style={styles.container}>
 
         <Text style={styles.titulo}>
-          🎉 Grupo criado!
+          Grupo criado
         </Text>
 
         <Text style={styles.subtitulo}>
@@ -241,6 +241,7 @@ export default function GrupoScreen({
         <TextInput
           style={styles.input}
           placeholder="Ex: Família Talys"
+          placeholderTextColor={cores.textoSecundario}
           value={nomeGrupo}
           onChangeText={(texto) => {
             setNomeGrupo(texto);
@@ -270,14 +271,12 @@ export default function GrupoScreen({
               setErro('');
               setCarregando(true);
 
-              // Cria o grupo no Firebase
               const grupo =
                 await criarGrupo(
                   nomeGrupo,
                   usuario
                 );
 
-              // Salva o grupo no perfil do usuário
               await salvarGrupoNoUsuario(
                 usuario.uid,
                 grupo.id
@@ -332,7 +331,7 @@ export default function GrupoScreen({
   // TELA PRINCIPAL
   // =====================================================
 
-    return (
+  return (
     <View style={styles.container}>
 
       <Text style={styles.titulo}>
@@ -367,14 +366,16 @@ export default function GrupoScreen({
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.botaoPular}
-        onPress={onPular}
-      >
-        <Text style={styles.botaoPularTexto}>
-          Pular por agora
-        </Text>
-      </TouchableOpacity>
+      {onPular && (
+        <TouchableOpacity
+          style={styles.botaoPular}
+          onPress={onPular}
+        >
+          <Text style={styles.botaoPularTexto}>
+            Pular por agora
+          </Text>
+        </TouchableOpacity>
+      )}
 
     </View>
   );
@@ -387,19 +388,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 25,
-    backgroundColor: '#fff',
+    backgroundColor: cores.fundo,
   },
 
   titulo: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 26,
+    fontFamily: fontes.titulo,
+    color: cores.texto,
     marginBottom: 12,
     textAlign: 'center',
   },
 
   subtitulo: {
     textAlign: 'center',
-    color: '#6b7280',
+    color: cores.textoSecundario,
     marginBottom: 30,
     lineHeight: 21,
   },
@@ -407,42 +409,44 @@ const styles = StyleSheet.create({
   input: {
     width: '90%',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
+    borderColor: cores.borda,
+    borderRadius: raio.botaoSecundario + 4,
     padding: 14,
     marginBottom: 12,
     fontSize: 16,
+    backgroundColor: cores.superficie,
+    color: cores.texto,
   },
 
   botao: {
     width: '90%',
     padding: 16,
-    borderRadius: 10,
-    backgroundColor: '#2563eb',
+    borderRadius: raio.pilula,
+    backgroundColor: cores.primaria,
     alignItems: 'center',
     marginBottom: 12,
   },
 
   botaoTexto: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: 'bold',
+    color: cores.textoSobrePrimaria,
+    fontSize: 16,
+    fontFamily: fontes.destaque,
   },
 
   botaoSecundario: {
     width: '90%',
     padding: 16,
-    borderRadius: 10,
+    borderRadius: raio.botaoSecundario,
     borderWidth: 1,
-    borderColor: '#2563eb',
+    borderColor: cores.primaria,
     alignItems: 'center',
     marginBottom: 12,
   },
 
   botaoSecundarioTexto: {
-    color: '#2563eb',
-    fontSize: 17,
-    fontWeight: 'bold',
+    color: cores.primaria,
+    fontSize: 16,
+    fontFamily: fontes.destaque,
   },
 
   botaoPular: {
@@ -450,25 +454,26 @@ const styles = StyleSheet.create({
   },
 
   botaoPularTexto: {
-    color: '#9ca3af',
+    color: cores.textoSecundario,
     fontSize: 15,
   },
 
   erro: {
-    color: '#dc2626',
+    color: cores.erro,
     textAlign: 'center',
     marginBottom: 10,
   },
 
   label: {
     fontSize: 14,
-    color: '#6b7280',
+    color: cores.textoSecundario,
     marginBottom: 8,
   },
 
   codigo: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontFamily: fontes.titulo,
+    color: cores.texto,
     letterSpacing: 4,
     marginBottom: 15,
   },
@@ -476,7 +481,7 @@ const styles = StyleSheet.create({
   instrucao: {
     width: '90%',
     textAlign: 'center',
-    color: '#6b7280',
+    color: cores.textoSecundario,
     marginBottom: 30,
     lineHeight: 21,
   },

@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import DadosUsuario from './DadosUsuario';
 import Configuracoes from './Configuracoes';
 import CameraScreen from '../camera/CameraScreen';
+import { cores, fontes } from '../theme/theme';
 
 export default function PerfilScreen({ usuario }) {
   const [abrirCamera, setAbrirCamera] = useState(false);
@@ -15,7 +16,6 @@ export default function PerfilScreen({ usuario }) {
     ? `@appintegrado:fotoPerfil:${usuario.uid}`
     : null;
 
-  // Carrega a foto salva desse usuário específico assim que a tela monta
   useEffect(() => {
     async function carregarFotoSalva() {
       if (!chaveFoto) {
@@ -34,7 +34,6 @@ export default function PerfilScreen({ usuario }) {
     carregarFotoSalva();
   }, [chaveFoto]);
 
-  // Salva a foto tanto no estado (pra aparecer na hora) quanto no AsyncStorage (pra persistir)
   async function salvarFoto(uri) {
     setFotoPerfil(uri);
 
@@ -113,6 +112,7 @@ export default function PerfilScreen({ usuario }) {
       <Text style={styles.title}>Meu Perfil</Text>
 
       <DadosUsuario
+        usuario={usuario}
         foto={fotoPerfil}
         onAlterarFoto={escolherFoto}
       />
@@ -127,12 +127,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingTop: 60,
-    backgroundColor: '#fff',
+    backgroundColor: cores.fundo,
   },
 
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 26,
+    fontFamily: fontes.titulo,
+    color: cores.texto,
     marginBottom: 30,
   },
 });

@@ -2,9 +2,11 @@ import { useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 
 import CameraControls from './CameraControls';
 import PreviewModal from './PreviewModal';
+import { cores, fontes, raio } from '../theme/theme';
 
 export default function CameraScreen({ onPhotoTaken, onCancel }) {
   const cameraRef = useRef(null);
@@ -164,9 +166,7 @@ export default function CameraScreen({ onPhotoTaken, onCancel }) {
             onPress={closeCamera}
             disabled={isTakingPicture}
           >
-            <Text style={styles.closeCameraText}>
-              ✕
-            </Text>
+            <Feather name="x" size={22} color="#fff" />
           </TouchableOpacity>
         )}
 
@@ -219,20 +219,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 30,
-    backgroundColor: '#fff',
+    backgroundColor: cores.fundo,
   },
 
   permissionTitle: {
     marginBottom: 12,
-    color: '#111827',
+    color: cores.texto,
     fontSize: 22,
-    fontWeight: 'bold',
+    fontFamily: fontes.titulo,
     textAlign: 'center',
   },
 
   permissionMessage: {
     marginBottom: 25,
-    color: '#4b5563',
+    color: cores.textoSecundario,
     fontSize: 16,
     lineHeight: 23,
     textAlign: 'center',
@@ -241,14 +241,14 @@ const styles = StyleSheet.create({
   permissionButton: {
     paddingHorizontal: 24,
     paddingVertical: 14,
-    borderRadius: 10,
-    backgroundColor: '#2563eb',
+    borderRadius: raio.pilula,
+    backgroundColor: cores.primaria,
   },
 
   permissionButtonText: {
-    color: '#fff',
+    color: cores.textoSobrePrimaria,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: fontes.destaque,
   },
 
   cancelButton: {
@@ -258,9 +258,9 @@ const styles = StyleSheet.create({
   },
 
   cancelButtonText: {
-    color: '#374151',
+    color: cores.textoSecundario,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: fontes.destaque,
   },
 
   closeCameraButton: {
@@ -274,11 +274,5 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     zIndex: 10,
-  },
-
-  closeCameraText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
   },
 });

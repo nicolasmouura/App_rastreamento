@@ -1,7 +1,6 @@
 import { Image, StyleSheet, TouchableOpacity, View, Text } from 'react-native';
+import { fontes } from '../theme/theme';
 
-// Componente "burro": só mostra os botões e chama as funções
-// recebidas via props. Não tem estado próprio nem lógica de câmera.
 export default function CameraControls({
   onFlip,
   onCapture,
@@ -91,6 +90,6 @@ const styles = StyleSheet.create({
   savingText: {
     color: '#fff',
     fontSize: 14,
-    fontWeight: 'bold',
+    fontFamily: fontes.destaque,
   },
 });

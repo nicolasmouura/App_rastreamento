@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { cores, fontes, raio } from '../theme/theme';
 
 export default function FormularioMembro({ onAdicionar, onCancelar }) {
   const [nome, setNome] = useState('');
@@ -32,6 +33,7 @@ export default function FormularioMembro({ onAdicionar, onCancelar }) {
       <TextInput
         style={styles.input}
         placeholder="Nome"
+        placeholderTextColor={cores.textoSecundario}
         value={nome}
         onChangeText={setNome}
       />
@@ -39,6 +41,7 @@ export default function FormularioMembro({ onAdicionar, onCancelar }) {
       <TextInput
         style={styles.input}
         placeholder="Parentesco"
+        placeholderTextColor={cores.textoSecundario}
         value={parentesco}
         onChangeText={setParentesco}
       />
@@ -65,38 +68,39 @@ const styles = StyleSheet.create({
     width: '90%',
     marginTop: 20,
     padding: 20,
-    borderRadius: 15,
-    backgroundColor: '#f3f4f6',
+    borderRadius: raio.card,
+    backgroundColor: cores.superficieAlternativa,
   },
 
   title: {
     marginBottom: 15,
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontSize: 18,
+    fontFamily: fontes.destaque,
+    color: cores.texto,
   },
 
   input: {
     height: 48,
     marginBottom: 12,
     paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: '#fff',
+    borderRadius: raio.botaoSecundario + 4,
+    backgroundColor: cores.superficie,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: cores.borda,
+    color: cores.texto,
   },
 
   addButton: {
     paddingVertical: 13,
-    borderRadius: 10,
+    borderRadius: raio.pilula,
     alignItems: 'center',
-    backgroundColor: '#2563eb',
+    backgroundColor: cores.primaria,
   },
 
   buttonText: {
-    color: '#fff',
+    color: cores.textoSobrePrimaria,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: fontes.destaque,
   },
 
   cancelButton: {
@@ -106,8 +110,8 @@ const styles = StyleSheet.create({
   },
 
   cancelText: {
-    color: '#dc2626',
+    color: cores.erro,
     fontSize: 15,
-    fontWeight: 'bold',
+    fontFamily: fontes.destaque,
   },
 });

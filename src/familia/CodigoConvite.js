@@ -1,5 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { Alert, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { cores, fontes, raio, sombra } from '../theme/theme';
 
 export default function CodigoConvite({ codigo, nomeGrupo }) {
   async function copiarCodigo() {
@@ -25,11 +27,13 @@ export default function CodigoConvite({ codigo, nomeGrupo }) {
 
       <View style={styles.botoes}>
         <TouchableOpacity style={styles.botao} onPress={copiarCodigo}>
-          <Text style={styles.botaoTexto}>📋 Copiar código</Text>
+          <Feather name="copy" size={16} color={cores.textoSobrePrimaria} />
+          <Text style={styles.botaoTexto}>Copiar código</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.botaoSecundario} onPress={compartilharConvite}>
-          <Text style={styles.botaoSecundarioTexto}>📤 Compartilhar</Text>
+          <Feather name="share-2" size={16} color={cores.primaria} />
+          <Text style={styles.botaoSecundarioTexto}>Compartilhar</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -39,24 +43,27 @@ export default function CodigoConvite({ codigo, nomeGrupo }) {
 const styles = StyleSheet.create({
   container: {
     width: '90%',
-    padding: 16,
+    padding: 18,
     marginBottom: 20,
-    borderRadius: 12,
-    backgroundColor: '#eff6ff',
+    borderRadius: raio.card,
+    backgroundColor: cores.superficie,
+    borderWidth: 1,
+    borderColor: cores.borda,
     alignItems: 'center',
+    ...sombra,
   },
 
   label: {
     fontSize: 13,
-    color: '#6b7280',
+    color: cores.textoSecundario,
     marginBottom: 6,
   },
 
   codigo: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontFamily: fontes.titulo,
     letterSpacing: 4,
-    color: '#2563eb',
+    color: cores.primaria,
     marginBottom: 14,
   },
 
@@ -66,29 +73,35 @@ const styles = StyleSheet.create({
   },
 
   botao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: '#2563eb',
+    borderRadius: raio.pilula,
+    backgroundColor: cores.primaria,
   },
 
   botaoTexto: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: cores.textoSobrePrimaria,
+    fontFamily: fontes.destaque,
     fontSize: 14,
   },
 
   botaoSecundario: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: raio.botaoSecundario,
     borderWidth: 1,
-    borderColor: '#2563eb',
+    borderColor: cores.primaria,
   },
 
   botaoSecundarioTexto: {
-    color: '#2563eb',
-    fontWeight: 'bold',
+    color: cores.primaria,
+    fontFamily: fontes.destaque,
     fontSize: 14,
   },
 });

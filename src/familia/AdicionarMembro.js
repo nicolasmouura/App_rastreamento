@@ -1,4 +1,5 @@
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { cores, fontes, raio } from '../theme/theme';
 
 export default function AdicionarMembro({ onPress }) {
   return (
@@ -13,14 +14,14 @@ const styles = StyleSheet.create({
     width: '90%',
     paddingVertical: 15,
     marginTop: 20,
-    borderRadius: 12,
-    backgroundColor: '#2563eb',
+    borderRadius: raio.pilula,
+    backgroundColor: cores.primaria,
     alignItems: 'center',
   },
 
   text: {
-    color: '#fff',
+    color: cores.textoSobrePrimaria,
     fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: fontes.destaque,
   },
 });
