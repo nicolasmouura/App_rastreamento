@@ -1,24 +1,32 @@
-import { StyleSheet, View } from 'react-native';
+import { FlatList, StyleSheet } from 'react-native';
 import MembroCard from './MembroCard';
 
 export default function ListaMembros({ membros }) {
   return (
-    <View style={styles.container}>
-      {membros.map((membro) => (
+    <FlatList
+      data={membros}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item }) => (
         <MembroCard
-          key={membro.id}
-          nome={membro.nome}
-          parentesco={membro.parentesco}
-          online={membro.online}
+          nome={item.nome}
+          status={item.online ? 'online' : 'offline'}
         />
-      ))}
-    </View>
+      )}
+      style={styles.lista}
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={true}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  lista: {
     width: '100%',
+    flex: 1,
+  },
+
+  container: {
     alignItems: 'center',
+    paddingBottom: 20,
   },
 });

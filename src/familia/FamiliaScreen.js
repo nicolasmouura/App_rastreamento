@@ -1,18 +1,24 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Modal,
+  Share,
+} from 'react-native';
+
+import * as Clipboard from 'expo-clipboard';
 
 import ListaMembros from './ListaMembros';
-import AdicionarMembro from './AdicionarMembro';
-import FormularioMembro from './FormularioMembro';
 import CodigoConvite from './CodigoConvite';
 import GrupoScreen from '../grupo/GrupoScreen';
 
 import { observarFamiliares } from '../dados/buscarFamiliares';
 import { buscarGrupoPorId } from '../dados/grupo';
 
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { cores, fontes } from '../theme/theme';
+import { cores, fontes, raio } from '../theme/theme';
 
 export default function FamiliaScreen({
   familiares,
@@ -22,7 +28,8 @@ export default function FamiliaScreen({
   onGrupoConcluido,
 }) {
   const [grupoInfo, setGrupoInfo] = useState(null);
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [mostrarConvite, setMostrarConvite] = useState(false);
+  const [codigoCopiado, setCodigoCopiado] = useState(false);
 
   useEffect(() => {
     if (!grupoId) return;
@@ -54,15 +61,51 @@ export default function FamiliaScreen({
     );
   }
 
-  const souHost = grupoInfo?.administradorUid === usuario?.uid;
+  const souHost =
+    grupoInfo?.administradorUid === usuario?.uid;
 
-  const adicionarMembro = () => {
-    setMostrarFormulario(true);
+  const copiarCodigo = async () => {
+    if (!grupoInfo?.codigoConvite) {
+      return;
+    }
+
+    await Clipboard.setStringAsync(
+      grupoInfo.codigoConvite
+    );
+
+    setCodigoCopiado(true);
+
+    setTimeout(() => {
+      setCodigoCopiado(false);
+    }, 2500);
+  };
+
+  const compartilharConvite = async () => {
+    if (!grupoInfo?.codigoConvite) {
+      return;
+    }
+
+    try {
+      await Share.share({
+        message:
+          `Você foi convidado para participar da minha família no Conecta!\n\n` +
+          `Instale o aplicativo Conecta e entre no grupo usando este código:\n\n` +
+          `${grupoInfo.codigoConvite}\n\n` +
+          `Depois, aceite o compartilhamento da localização para que possamos acompanhar uns aos outros no mapa.`,
+      });
+    } catch (erro) {
+      console.error(
+        'Erro ao compartilhar convite:',
+        erro
+      );
+    }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Minha Família</Text>
+      <Text style={styles.title}>
+        Minha Família
+      </Text>
 
       <Text style={styles.subtitle}>
         Pessoas que compartilham a localização com você
@@ -77,43 +120,88 @@ export default function FamiliaScreen({
 
       <ListaMembros membros={familiares} />
 
-      {mostrarFormulario ? (
-        <FormularioMembro
-          onAdicionar={async (novoMembro) => {
-            try {
-              const membro = {
-                uid: `membro-${Date.now()}`,
-                grupoId: grupoId,
-                nome: novoMembro.nome,
-                parentesco: novoMembro.parentesco,
-                latitude: -22.5245,
-                longitude: -43.6815,
-                online: false,
-              };
+      <TouchableOpacity
+        style={styles.botaoConvidar}
+        onPress={() => {
+          setCodigoCopiado(false);
+          setMostrarConvite(true);
+        }}
+      >
+        <Text style={styles.botaoConvidarTexto}>
+          + Convidar familiar
+        </Text>
+      </TouchableOpacity>
 
-              const documento = await addDoc(
-                collection(db, 'familiares'),
-                membro
-              );
+      <Modal
+        visible={mostrarConvite}
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setMostrarConvite(false)
+        }
+      >
+        <View style={styles.modalFundo}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitulo}>
+              Convidar familiar
+            </Text>
 
-              const membroSalvo = {
-                id: documento.id,
-                ...membro,
-              };
+            <Text style={styles.modalTexto}>
+              Para participar da sua família, a pessoa
+              precisa instalar o Conecta e entrar no seu
+              grupo usando o código abaixo.
+            </Text>
 
-              setFamiliares((atual) => [...atual, membroSalvo]);
-              setMostrarFormulario(false);
+            <Text style={styles.modalTexto}>
+              Depois de entrar, ela poderá permitir o
+              compartilhamento da localização.
+            </Text>
 
-              console.log('Membro salvo no Firebase:', membroSalvo);
-            } catch (erro) {
-              console.error('Erro ao salvar membro:', erro);
-            }
-          }}
-          onCancelar={() => setMostrarFormulario(false)}
-        />
-      ) : (
-        <AdicionarMembro onPress={adicionarMembro} />
-      )}
+            <Text style={styles.modalLabel}>
+              Código do grupo
+            </Text>
+
+            <Text style={styles.modalCodigo}>
+              {grupoInfo?.codigoConvite}
+            </Text>
+
+            {codigoCopiado && (
+              <Text style={styles.codigoCopiado}>
+                ✓ Código copiado!
+              </Text>
+            )}
+
+            <TouchableOpacity
+              style={styles.botaoPrincipal}
+              onPress={copiarCodigo}
+            >
+              <Text style={styles.botaoPrincipalTexto}>
+                Copiar código
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.botaoCompartilhar}
+              onPress={compartilharConvite}
+            >
+              <Text style={styles.botaoCompartilharTexto}>
+                Compartilhar convite
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.botaoFechar}
+              onPress={() =>
+                setMostrarConvite(false)
+              }
+            >
+              <Text style={styles.botaoFecharTexto}>
+                Fechar
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -138,5 +226,118 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: cores.textoSecundario,
     marginBottom: 25,
+  },
+
+  botaoConvidar: {
+    width: '90%',
+    padding: 16,
+    borderRadius: raio.pilula,
+    backgroundColor: cores.primaria,
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 20,
+  },
+
+  botaoConvidarTexto: {
+    color: cores.textoSobrePrimaria,
+    fontSize: 16,
+    fontFamily: fontes.destaque,
+  },
+
+  modalFundo: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+
+  modalContainer: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: cores.superficie,
+    borderRadius: 20,
+    padding: 25,
+    alignItems: 'center',
+  },
+
+  modalTitulo: {
+    fontSize: 24,
+    fontFamily: fontes.titulo,
+    color: cores.texto,
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+
+  modalTexto: {
+    width: '100%',
+    textAlign: 'center',
+    color: cores.textoSecundario,
+    fontSize: 15,
+    lineHeight: 21,
+    marginBottom: 12,
+  },
+
+  modalLabel: {
+    fontSize: 14,
+    color: cores.textoSecundario,
+    marginTop: 8,
+    marginBottom: 5,
+  },
+
+  modalCodigo: {
+    fontSize: 32,
+    fontFamily: fontes.titulo,
+    color: cores.texto,
+    letterSpacing: 4,
+    marginBottom: 8,
+  },
+
+  codigoCopiado: {
+    color: cores.primaria,
+    fontSize: 15,
+    fontFamily: fontes.destaque,
+    marginBottom: 12,
+  },
+
+  botaoPrincipal: {
+    width: '100%',
+    padding: 15,
+    borderRadius: raio.pilula,
+    backgroundColor: cores.primaria,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 10,
+  },
+
+  botaoPrincipalTexto: {
+    color: cores.textoSobrePrimaria,
+    fontSize: 16,
+    fontFamily: fontes.destaque,
+  },
+
+  botaoCompartilhar: {
+    width: '100%',
+    padding: 15,
+    borderRadius: raio.botaoSecundario,
+    borderWidth: 1,
+    borderColor: cores.primaria,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+
+  botaoCompartilharTexto: {
+    color: cores.primaria,
+    fontSize: 16,
+    fontFamily: fontes.destaque,
+  },
+
+  botaoFechar: {
+    padding: 12,
+  },
+
+  botaoFecharTexto: {
+    color: cores.textoSecundario,
+    fontSize: 15,
   },
 });

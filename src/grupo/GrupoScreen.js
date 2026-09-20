@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import * as Clipboard from 'expo-clipboard';
 
 import {
   StyleSheet,
@@ -32,6 +33,7 @@ export default function GrupoScreen({
   const [carregando, setCarregando] = useState(false);
 
   const [grupoCriado, setGrupoCriado] = useState(null);
+  const [codigoCopiado, setCodigoCopiado] = useState(false);
 
   // =====================================================
   // ENTRAR COM CÓDIGO
@@ -203,6 +205,31 @@ export default function GrupoScreen({
           {grupoCriado.codigoConvite}
         </Text>
 
+        <TouchableOpacity
+          style={styles.botaoCopiar}
+          onPress={async () => {
+            await Clipboard.setStringAsync(
+              grupoCriado.codigoConvite
+            );
+
+            setCodigoCopiado(true);
+
+            setTimeout(() => {
+              setCodigoCopiado(false);
+            }, 2500);
+          }}
+        >
+          <Text style={styles.botaoCopiarTexto}>
+            Copiar código
+          </Text>
+        </TouchableOpacity>
+
+        {codigoCopiado && (
+          <Text style={styles.codigoCopiado}>
+            ✓ Código copiado!
+          </Text>
+        )}
+
         <Text style={styles.instrucao}>
           Compartilhe este código com sua família
           para que eles possam solicitar entrada
@@ -211,7 +238,9 @@ export default function GrupoScreen({
 
         <TouchableOpacity
           style={styles.botao}
-          onPress={() => onGrupoConcluido(grupoCriado.id)}
+          onPress={() =>
+            onGrupoConcluido(grupoCriado.id)
+          }
         >
           <Text style={styles.botaoTexto}>
             Continuar
@@ -447,6 +476,29 @@ const styles = StyleSheet.create({
     color: cores.primaria,
     fontSize: 16,
     fontFamily: fontes.destaque,
+  },
+
+  botaoCopiar: {
+    width: '90%',
+    padding: 14,
+    borderRadius: raio.botaoSecundario,
+    borderWidth: 1,
+    borderColor: cores.primaria,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+
+  botaoCopiarTexto: {
+    color: cores.primaria,
+    fontSize: 16,
+    fontFamily: fontes.destaque,
+  },
+
+  codigoCopiado: {
+    color: cores.primaria,
+    fontSize: 15,
+    fontFamily: fontes.destaque,
+    marginBottom: 12,
   },
 
   botaoPular: {
