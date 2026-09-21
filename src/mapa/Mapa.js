@@ -17,29 +17,43 @@ export default function Mapa({ location, familiares }) {
     if (
       !mapaRef.current ||
       !mapaPronto.current ||
-      !location
+      !location ||
+      jaCentralizou.current
     ) {
       return;
     }
 
-    mapaRef.current.animateCamera(
-      {
-        center: {
-          latitude: location.latitude,
-          longitude: location.longitude,
-        },
-        zoom: 17,
-      },
-      {
-        duration: 800,
-      }
-    );
-
+    // Marca antes da animação para impedir
+    // que as próximas atualizações da localização
+    // façam o mapa se mover novamente.
     jaCentralizou.current = true;
+
+    // Pequeno intervalo para o mapa aparecer
+    // antes de iniciar o efeito.
+    setTimeout(() => {
+      if (!mapaRef.current) {
+        return;
+      }
+
+      mapaRef.current.animateCamera(
+        {
+          center: {
+            latitude: location.latitude,
+            longitude: location.longitude,
+          },
+          zoom: 17,
+          pitch: 0,
+          heading: 0,
+        },
+        {
+          duration: 1400,
+        }
+      );
+    }, 300);
   };
 
   useEffect(() => {
-    if (!location) {
+    if (!location || !mapaPronto.current) {
       return;
     }
 
@@ -53,13 +67,13 @@ export default function Mapa({ location, familiares }) {
       initialRegion={{
         latitude,
         longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
+        latitudeDelta: 0.15,
+        longitudeDelta: 0.15,
       }}
       onMapReady={() => {
         mapaPronto.current = true;
 
-        if (!jaCentralizou.current) {
+        if (!jaCentralizou.current && location) {
           centralizarNaLocalizacao();
         }
       }}
