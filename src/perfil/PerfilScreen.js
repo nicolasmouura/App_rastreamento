@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -19,6 +22,10 @@ import CameraScreen from '../camera/CameraScreen';
 
 import { auth } from '../config/firebase';
 import {
+  atualizarPerfil,
+  buscarPerfil,
+} from '../dados/salvarUsuario';
+import {
   cores,
   fontes,
   raio,
@@ -28,10 +35,71 @@ import {
 export default function PerfilScreen({
   usuario,
   onSair,
+  onPerfilAtualizado,
   visitas = [],
 }) {
   const [abrirCamera, setAbrirCamera] = useState(false);
   const [fotoPerfil, setFotoPerfil] = useState(null);
+
+  // Dados pessoais vindos de usuarios/{uid}
+  const [dadosPerfil, setDadosPerfil] = useState(null);
+  const [erroPerfil, setErroPerfil] = useState('');
+
+  useEffect(() => {
+    let ativo = true;
+
+    async function carregarPerfil() {
+      if (!usuario?.uid) {
+        return;
+      }
+
+      try {
+        setErroPerfil('');
+
+        const perfilSalvo =
+          await buscarPerfil(usuario.uid);
+
+        if (ativo) {
+          setDadosPerfil(perfilSalvo);
+        }
+      } catch (error) {
+        console.error(
+          'Erro ao carregar perfil:',
+          error
+        );
+
+        if (ativo) {
+          setErroPerfil(
+            'Não foi possível carregar seus dados.'
+          );
+        }
+      }
+    }
+
+    carregarPerfil();
+
+    return () => {
+      ativo = false;
+    };
+  }, [usuario?.uid]);
+
+  async function salvarPerfil(dados) {
+    const salvos = await atualizarPerfil(
+      usuario.uid,
+      dados
+    );
+
+    setDadosPerfil((atual) => ({
+      ...atual,
+      ...salvos,
+    }));
+
+    if (onPerfilAtualizado) {
+      onPerfilAtualizado(salvos);
+    }
+
+    return salvos;
+  }
 
   const chaveFoto = usuario?.uid
     ? `@appintegrado:fotoPerfil:${usuario.uid}`
@@ -235,9 +303,17 @@ export default function PerfilScreen({
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={
+        Platform.OS === 'ios'
+          ? 'padding'
+          : undefined
+      }
+    >
       <FlatList
         data={visitas}
+        keyboardShouldPersistTaps="handled"
         keyExtractor={(item) =>
           item.id || item.pontoId
         }
@@ -252,13 +328,46 @@ export default function PerfilScreen({
               Meu Perfil
             </Text>
 
-            <DadosUsuario
-              usuario={usuario}
-              foto={fotoPerfil}
-              onAlterarFoto={
-                escolherFoto
-              }
-            />
+            {dadosPerfil ? (
+              <DadosUsuario
+                perfil={dadosPerfil}
+                foto={fotoPerfil}
+                onAlterarFoto={
+                  escolherFoto
+                }
+                onSalvar={salvarPerfil}
+              />
+            ) : (
+              <View
+                style={
+                  styles.carregandoPerfil
+                }
+              >
+                {erroPerfil ? (
+                  <Text
+                    style={
+                      styles.erroPerfil
+                    }
+                  >
+                    {erroPerfil}
+                  </Text>
+                ) : (
+                  <>
+                    <ActivityIndicator
+                      color={cores.primaria}
+                    />
+
+                    <Text
+                      style={
+                        styles.carregandoTexto
+                      }
+                    >
+                      Carregando seus dados...
+                    </Text>
+                  </>
+                )}
+              </View>
+            )}
 
             <View style={styles.secao}>
               <View
@@ -364,7 +473,7 @@ export default function PerfilScreen({
           </View>
         }
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -378,6 +487,23 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 40,
+  },
+
+  carregandoPerfil: {
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 40,
+  },
+
+  carregandoTexto: {
+    fontSize: 15,
+    color: cores.textoSecundario,
+  },
+
+  erroPerfil: {
+    fontSize: 15,
+    color: cores.erro,
+    textAlign: 'center',
   },
 
   title: {

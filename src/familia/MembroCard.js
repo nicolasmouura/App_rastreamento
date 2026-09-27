@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { mascararDocumento } from '../dados/salvarUsuario';
 import { cores, fontes, raio, sombra } from '../theme/theme';
 
 const STATUS = {
@@ -6,7 +7,21 @@ const STATUS = {
   pendente: { texto: 'Convite pendente', cor: cores.pendente },
 };
 
-export default function MembroCard({ nome, status, administrador, voce }) {
+const PAPEIS = {
+  administrador: 'Administrador',
+  membro: 'Membro',
+};
+
+function Informacao({ label, valor }) {
+  return (
+    <Text style={styles.informacao}>
+      <Text style={styles.informacaoLabel}>{label}: </Text>
+      {valor || 'Não informado'}
+    </Text>
+  );
+}
+
+export default function MembroCard({ nome, status, papel, perfil, voce }) {
   const infoStatus = STATUS[status] || STATUS.pendente;
 
   return (
@@ -18,8 +33,15 @@ export default function MembroCard({ nome, status, administrador, voce }) {
             {voce ? ' (você)' : ''}
           </Text>
 
-          {administrador && (
-            <Text style={styles.administrador}>Administrador</Text>
+          {PAPEIS[papel] && (
+            <Text
+              style={[
+                styles.papel,
+                papel === 'administrador' && styles.papelAdministrador,
+              ]}
+            >
+              {PAPEIS[papel]}
+            </Text>
           )}
         </View>
 
@@ -30,6 +52,23 @@ export default function MembroCard({ nome, status, administrador, voce }) {
 
           <Text style={styles.statusTexto}>{infoStatus.texto}</Text>
         </View>
+
+        {status === 'ativo' && (
+          <View style={styles.dados}>
+            <Informacao label="Telefone" valor={perfil?.telefone} />
+
+            <Informacao
+              label="Documento"
+              valor={
+                perfil?.documento
+                  ? mascararDocumento(perfil.documento)
+                  : ''
+              }
+            />
+
+            <Informacao label="Onde mora" valor={perfil?.endereco} />
+          </View>
+        )}
       </View>
     </View>
   );
@@ -63,15 +102,20 @@ const styles = StyleSheet.create({
     color: cores.texto,
   },
 
-  administrador: {
+  papel: {
     fontSize: 12,
     fontFamily: fontes.destaque,
-    color: cores.primaria,
-    backgroundColor: cores.superficieAlternativa,
+    color: cores.textoSecundario,
+    backgroundColor: cores.fundo,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: raio.pilula,
     overflow: 'hidden',
+  },
+
+  papelAdministrador: {
+    color: cores.primaria,
+    backgroundColor: cores.superficieAlternativa,
   },
 
   statusLinha: {
@@ -88,6 +132,23 @@ const styles = StyleSheet.create({
 
   statusTexto: {
     fontSize: 14,
+    color: cores.textoSecundario,
+  },
+
+  dados: {
+    marginTop: 4,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: cores.borda,
+    gap: 3,
+  },
+
+  informacao: {
+    fontSize: 14,
+    color: cores.texto,
+  },
+
+  informacaoLabel: {
     color: cores.textoSecundario,
   },
 });

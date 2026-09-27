@@ -8,9 +8,10 @@ export default function ListaMembros({ membros, uidAtual }) {
       keyExtractor={(item) => item.id}
       renderItem={({ item }) => (
         <MembroCard
-          nome={item.nome}
+          nome={item.perfil?.nome || item.nome}
           status={item.status}
-          administrador={item.papel === 'administrador'}
+          papel={item.papel}
+          perfil={item.perfil}
           voce={item.uid === uidAtual}
         />
       )}

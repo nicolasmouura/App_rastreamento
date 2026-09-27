@@ -19,6 +19,7 @@ import {
 } from '../dados/grupo';
 
 import { observarConvitesPendentesDoGrupo } from '../dados/convites';
+import { buscarPerfisDosMembros } from '../dados/salvarUsuario';
 
 import { cores, fontes, raio } from '../theme/theme';
 
@@ -33,6 +34,30 @@ export default function FamiliaScreen({
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [mostrarConvite, setMostrarConvite] = useState(false);
+
+  // Perfis (usuarios/{uid}) dos membros, indexados por uid
+  const [perfis, setPerfis] = useState({});
+
+  const uidsMembros = membros
+    .map((membro) => membro.uid)
+    .sort()
+    .join(',');
+
+  useEffect(() => {
+    if (!uidsMembros) return;
+
+    let ativo = true;
+
+    buscarPerfisDosMembros(uidsMembros.split(',')).then(
+      (resultado) => {
+        if (ativo) setPerfis(resultado);
+      }
+    );
+
+    return () => {
+      ativo = false;
+    };
+  }, [uidsMembros]);
 
   useEffect(() => {
     if (!grupoId || !usuario?.uid) return;
@@ -130,7 +155,10 @@ export default function FamiliaScreen({
   );
 
   const lista = [
-    ...membros,
+    ...membros.map((membro) => ({
+      ...membro,
+      perfil: perfis[membro.uid],
+    })),
     ...convitesPendentes.map((convite) => ({
       id: `convite_${convite.id}`,
       nome: convite.paraEmail,

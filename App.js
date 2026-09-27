@@ -435,6 +435,12 @@ export default function App() {
         usuario={perfil}
         visitas={visitasExplorar}
         onSair={sairDoAplicativo}
+        onPerfilAtualizado={({ nome }) =>
+          setPerfil((atual) => ({
+            ...atual,
+            nome,
+          }))
+        }
       />
     );
   } else if (tela === 'conquista') {

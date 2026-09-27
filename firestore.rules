@@ -59,6 +59,26 @@ service cloud.firestore {
       return nome is string && nome.size() > 0 && nome.size() <= 60;
     }
 
+    function textoOpcional(dados, campo, maximo) {
+      return !(campo in dados)
+        || (dados[campo] is string && dados[campo].size() <= maximo);
+    }
+
+    // Dados pessoais editáveis pelo dono em "Meu Perfil".
+    function dadosPessoaisValidos(dados) {
+      return (!('nome' in dados) || nomeValido(dados.nome))
+        && textoOpcional(dados, 'telefone', 20)
+        && textoOpcional(dados, 'documento', 20)
+        && textoOpcional(dados, 'endereco', 120)
+        && textoOpcional(dados, 'atualizadoEm', 40);
+    }
+
+    // O perfil pertence a uma família da qual o usuário atual é membro.
+    function perfilDaMinhaFamilia(perfil) {
+      let grupoId = perfil.get('grupoId', null);
+      return grupoId is string && ehMembro(grupoId);
+    }
+
     // O grupoId do perfil só pode mudar de "vazio" para
     // uma família da qual o usuário realmente é membro.
     function vinculoDeFamiliaValido(grupoAnterior) {
@@ -101,19 +121,28 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------
-    // USUÁRIOS (perfil + conquistas): somente o próprio dono
+    // USUÁRIOS: o dono lê e edita; membros da mesma família
+    // apenas leem o perfil. Conquistas são só do dono.
     // ---------------------------------------------------
 
     match /usuarios/{userId} {
-      allow read: if autenticado() && meuUid() == userId;
+      allow read: if autenticado()
+        && (meuUid() == userId || perfilDaMinhaFamilia(resource.data));
 
       allow create: if autenticado()
         && meuUid() == userId
+        && request.resource.data.keys().hasOnly(['nome', 'email', 'uid', 'criadoEm', 'grupoId', 'telefone', 'documento', 'endereco', 'atualizadoEm'])
+        && request.resource.data.get('uid', userId) == userId
+        && (!('email' in request.resource.data) || request.resource.data.email.lower() == meuEmail())
+        && dadosPessoaisValidos(request.resource.data)
         && vinculoDeFamiliaValido(null);
 
+      // uid, email e criadoEm não podem mudar. grupoId só muda
+      // pelo fluxo de família/convite (vinculoDeFamiliaValido).
       allow update: if autenticado()
         && meuUid() == userId
-        && request.resource.data.get('uid', userId) == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'telefone', 'documento', 'endereco', 'atualizadoEm', 'grupoId'])
+        && dadosPessoaisValidos(request.resource.data)
         && vinculoDeFamiliaValido(resource.data.get('grupoId', null));
 
       allow delete: if false;
@@ -179,7 +208,16 @@ service cloud.firestore {
               : 'membro'
           );
 
-        allow update, delete: if false;
+        // O próprio membro só pode sincronizar a cópia do nome
+        // com usuarios/{uid}, na mesma gravação do perfil.
+        // papel, status, uid e demais campos não mudam.
+        allow update: if autenticado()
+          && membroUid == meuUid()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome'])
+          && nomeValido(request.resource.data.nome)
+          && request.resource.data.nome == getAfter(caminhoUsuario(meuUid())).data.nome;
+
+        allow delete: if false;
       }
     }
 
