@@ -1,100 +1,86 @@
 import { useEffect, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 
-import MapView, { Marker } from 'react-native-maps';
+import MapView from 'react-native-maps';
 
 import MarcadorFamilia from './MarcadorFamilia';
 
-export default function Mapa({ location, familiares }) {
+const MARGEM_ENQUADRAMENTO = { top: 120, right: 60, bottom: 180, left: 60 };
+
+// marcadores: um item por pessoa (montarMarcadores), já validados.
+// pronto: dados iniciais da família carregados.
+export default function Mapa({ marcadores, pronto }) {
   const mapaRef = useRef(null);
   const mapaPronto = useRef(false);
-  const jaCentralizou = useRef(false);
 
-  const latitude = location?.latitude ?? -22.5245;
-  const longitude = location?.longitude ?? -43.6815;
+  // Depois que o usuário mexe no mapa, não reenquadramos mais.
+  const usuarioMoveu = useRef(false);
+  const ultimoEnquadramento = useRef('');
 
-  const centralizarNaLocalizacao = () => {
+  // Muda só quando alguém aparece ou some do mapa,
+  // não a cada movimento de um membro.
+  const pessoasVisiveis = marcadores
+    .map((marcador) => marcador.uid)
+    .sort()
+    .join(',');
+
+  function enquadrar() {
     if (
       !mapaRef.current ||
       !mapaPronto.current ||
-      !location ||
-      jaCentralizou.current
+      !pronto ||
+      usuarioMoveu.current ||
+      !pessoasVisiveis ||
+      ultimoEnquadramento.current === pessoasVisiveis
     ) {
       return;
     }
 
-    // Marca antes da animação para impedir
-    // que as próximas atualizações da localização
-    // façam o mapa se mover novamente.
-    jaCentralizou.current = true;
+    ultimoEnquadramento.current = pessoasVisiveis;
 
-    // Pequeno intervalo para o mapa aparecer
-    // antes de iniciar o efeito.
+    const coordenadas = marcadores.map(({ latitude, longitude }) => ({
+      latitude,
+      longitude,
+    }));
+
+    // Pequeno intervalo para o mapa aparecer antes da animação.
     setTimeout(() => {
-      if (!mapaRef.current) {
-        return;
-      }
+      if (!mapaRef.current) return;
 
-      mapaRef.current.animateCamera(
-        {
-          center: {
-            latitude: location.latitude,
-            longitude: location.longitude,
-          },
-          zoom: 17,
-          pitch: 0,
-          heading: 0,
-        },
-        {
-          duration: 1400,
-        }
-      );
+      if (coordenadas.length === 1) {
+        mapaRef.current.animateCamera(
+          { center: coordenadas[0], zoom: 16, pitch: 0, heading: 0 },
+          { duration: 1000 }
+        );
+      } else {
+        mapaRef.current.fitToCoordinates(coordenadas, {
+          edgePadding: MARGEM_ENQUADRAMENTO,
+          animated: true,
+        });
+      }
     }, 300);
-  };
+  }
 
   useEffect(() => {
-    if (!location || !mapaPronto.current) {
-      return;
-    }
-
-    centralizarNaLocalizacao();
-  }, [location]);
+    enquadrar();
+  }, [pronto, pessoasVisiveis]);
 
   return (
     <MapView
       ref={mapaRef}
       style={styles.map}
-      initialRegion={{
-        latitude,
-        longitude,
-        latitudeDelta: 0.15,
-        longitudeDelta: 0.15,
-      }}
       onMapReady={() => {
         mapaPronto.current = true;
-
-        if (!jaCentralizou.current && location) {
-          centralizarNaLocalizacao();
-        }
+        enquadrar();
+      }}
+      onPanDrag={() => {
+        usuarioMoveu.current = true;
       }}
     >
-      {/* Minha localização */}
-      {location && (
-        <Marker
-          coordinate={{
-            latitude: location.latitude,
-            longitude: location.longitude,
-          }}
-          title="Você"
-          description="Sua localização atual"
-        />
-      )}
-
-      {/* Familiares */}
-      {familiares.map((membro) => (
+      {marcadores.map((marcador) => (
         <MarcadorFamilia
-          key={membro.id}
-          membro={membro}
+          key={marcador.uid}
+          membro={marcador}
         />
       ))}
     </MapView>

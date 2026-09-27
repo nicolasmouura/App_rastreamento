@@ -14,7 +14,11 @@ export const INTERVALO_MINIMO_ENVIO = 15 * 1000; // nunca mais que 1 gravação 
 export const INTERVALO_MAXIMO_ENVIO = 5 * 60 * 1000; // parado: 1 gravação a cada 5 min
 export const DISTANCIA_MINIMA_ENVIO = 50; // em movimento: a cada 50 m
 
-export function observarFamiliares(grupoId, callback) {
+// Uma localização é considerada "atual" se foi gravada nos últimos
+// 10 min (com o app em uso, a Etapa 3 grava pelo menos a cada 5 min).
+export const LIMITE_LOCALIZACAO_ATUAL = 10 * 60 * 1000;
+
+export function observarFamiliares(grupoId, callback, onErro) {
   // Sem grupo ainda -> lista vazia (evita mostrar dados de outros grupos)
   if (!grupoId) {
     callback([]);
@@ -26,16 +30,156 @@ export function observarFamiliares(grupoId, callback) {
     where('grupoId', '==', grupoId)
   );
 
-  const cancelar = onSnapshot(referencia, (consulta) => {
-    const familiares = consulta.docs.map((documento) => ({
-      id: documento.id,
-      ...documento.data(),
-    }));
+  const cancelar = onSnapshot(
+    referencia,
+    (consulta) => {
+      const familiares = consulta.docs.map((documento) => ({
+        id: documento.id,
+        // Gravação local ainda sem hora do servidor: usa a estimativa.
+        ...documento.data({ serverTimestamps: 'estimate' }),
+      }));
 
-    callback(familiares);
-  });
+      callback(familiares);
+    },
+    onErro
+  );
 
   return cancelar;
+}
+
+export function coordenadaValida(latitude, longitude) {
+  return (
+    typeof latitude === 'number' &&
+    typeof longitude === 'number' &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+}
+
+// Timestamp do Firestore, Date ou milissegundos → milissegundos (ou null).
+function paraMilissegundos(valor) {
+  if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
+  if (valor instanceof Date) return valor.getTime();
+  if (typeof valor?.toMillis === 'function') return valor.toMillis();
+  return null;
+}
+
+export function descreverAtualizacao(momento, agora) {
+  if (momento === null) {
+    return 'Localização disponível';
+  }
+
+  const minutos = Math.floor(Math.max(0, agora - momento) / 60000);
+
+  if (minutos < 1) return 'Atualizado agora';
+  if (minutos < 60) return `Atualizado há ${minutos} min`;
+
+  const horas = Math.floor(minutos / 60);
+
+  if (horas < 24) return `Atualizado há ${horas} h`;
+
+  return `Atualizado em ${new Date(momento).toLocaleDateString('pt-BR')}`;
+}
+
+/*
+ * Junta os membros ativos da família com as localizações
+ * de familiares/{uid} e devolve um marcador por pessoa.
+ *
+ * membros       grupos/{grupoId}/membros (fonte de quem é da
+ *               família e do nome, sincronizado com usuarios/{uid})
+ * localizacoes  documentos de familiares/{uid} da família
+ * minhaPosicao  posição do GPS deste aparelho ({ latitude, longitude,
+ *               atualizadoEm }) ou null — o próprio usuário usa a
+ *               posição local, mais recente que a gravada
+ */
+export function montarMarcadores({
+  membros,
+  localizacoes,
+  meuUid,
+  meuNome,
+  minhaPosicao,
+  agora,
+}) {
+  // Um documento por UID: o id do documento é o UID do dono.
+  const localizacaoPorUid = new Map();
+
+  for (const localizacao of localizacoes) {
+    if (localizacao.uid !== undefined && localizacao.uid !== localizacao.id) {
+      continue;
+    }
+
+    localizacaoPorUid.set(localizacao.id, localizacao);
+  }
+
+  const pessoas = membros
+    .filter((membro) => membro.status === 'ativo')
+    .map((membro) => ({ uid: membro.uid || membro.id, nome: membro.nome }));
+
+  // Família criada antes da Etapa 1 pode não ter o registro do próprio usuário.
+  if (meuUid && !pessoas.some((pessoa) => pessoa.uid === meuUid)) {
+    pessoas.push({ uid: meuUid, nome: meuNome });
+  }
+
+  const marcadores = [];
+  const semLocalizacao = [];
+  const vistos = new Set();
+
+  for (const pessoa of pessoas) {
+    if (!pessoa.uid || vistos.has(pessoa.uid)) continue;
+
+    vistos.add(pessoa.uid);
+
+    const voce = pessoa.uid === meuUid;
+    const localizacao = localizacaoPorUid.get(pessoa.uid);
+
+    const nome =
+      (pessoa.nome || '').trim() ||
+      (localizacao?.nome || '').trim() ||
+      'Membro da família';
+
+    let origem = localizacao;
+
+    if (voce && minhaPosicao) {
+      origem = {
+        latitude: minhaPosicao.latitude,
+        longitude: minhaPosicao.longitude,
+        atualizadoEm: minhaPosicao.atualizadoEm ?? agora,
+      };
+    }
+
+    if (!origem) {
+      semLocalizacao.push({ uid: pessoa.uid, nome, voce, motivo: 'indisponivel' });
+      continue;
+    }
+
+    if (!coordenadaValida(origem.latitude, origem.longitude)) {
+      console.warn('Localização inválida ignorada:', pessoa.uid);
+      semLocalizacao.push({ uid: pessoa.uid, nome, voce, motivo: 'invalida' });
+      continue;
+    }
+
+    const atualizadoEm = paraMilissegundos(origem.atualizadoEm);
+    const recente =
+      atualizadoEm !== null && agora - atualizadoEm <= LIMITE_LOCALIZACAO_ATUAL;
+
+    marcadores.push({
+      uid: pessoa.uid,
+      nome,
+      voce,
+      latitude: origem.latitude,
+      longitude: origem.longitude,
+      atualizadoEm,
+      recente,
+      situacao: recente ? 'Localização atual' : 'Última localização',
+      detalhe: descreverAtualizacao(atualizadoEm, agora),
+    });
+  }
+
+  return { marcadores, semLocalizacao };
 }
 
 // Distância aproximada em metros entre duas coordenadas.

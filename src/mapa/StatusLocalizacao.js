@@ -12,7 +12,7 @@ export default function StatusLocalizacao({ texto, ativo }) {
         ]}
       />
 
-      <Text style={styles.texto} numberOfLines={3}>
+      <Text style={styles.texto} numberOfLines={5}>
         {texto}
       </Text>
     </View>
