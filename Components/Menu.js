@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react';
-
 import {
   ScrollView,
   StyleSheet,
@@ -10,7 +8,8 @@ import {
 
 import { Feather } from '@expo/vector-icons';
 import MapView, { Marker } from 'react-native-maps';
-import * as Location from 'expo-location';
+
+import { descreverLocalizacao } from '../src/mapa/compartilharLocalizacao';
 
 import {
   cores,
@@ -46,43 +45,10 @@ const OPCOES = [
   },
 ];
 
-export default function Menu({ onSelect, nome }) {
-  const [localizacao, setLocalizacao] = useState(null);
-
-  useEffect(() => {
-    let ativo = true;
-
-    async function buscarLocalizacao() {
-      try {
-        const permissao =
-          await Location.requestForegroundPermissionsAsync();
-
-        if (permissao.status !== 'granted') {
-          return;
-        }
-
-        const resultado =
-          await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          });
-
-        if (ativo) {
-          setLocalizacao(resultado.coords);
-        }
-      } catch (erro) {
-        console.log(
-          'Não foi possível obter a localização para o mini mapa:',
-          erro
-        );
-      }
-    }
-
-    buscarLocalizacao();
-
-    return () => {
-      ativo = false;
-    };
-  }, []);
+export default function Menu({ onSelect, nome, localizacao: estadoLocalizacao }) {
+  // Estado vindo de useCompartilharLocalizacao (App.js)
+  const localizacao = estadoLocalizacao.coordenadas;
+  const descricao = descreverLocalizacao(estadoLocalizacao);
 
   return (
     <View style={styles.container}>
@@ -130,10 +96,22 @@ export default function Menu({ onSelect, nome }) {
             </View>
 
             <View style={styles.statusAtivo}>
-              <View style={styles.bolinhaOnline} />
+              <View
+                style={[
+                  styles.bolinhaOnline,
+                  !descricao.ativo && styles.bolinhaOffline,
+                ]}
+              />
 
-              <Text style={styles.statusTexto}>
-                Localização ativa
+              <Text
+                style={[
+                  styles.statusTexto,
+                  !descricao.ativo && styles.statusTextoOffline,
+                ]}
+              >
+                {descricao.ativo
+                  ? 'Compartilhando'
+                  : 'Desativada'}
               </Text>
             </View>
           </View>
@@ -176,19 +154,32 @@ export default function Menu({ onSelect, nome }) {
                 />
 
                 <Text style={styles.mapaCarregandoTexto}>
-                  Localizando...
+                  {descricao.ativo
+                    ? 'Localizando...'
+                    : 'Sem localização'}
                 </Text>
               </View>
             )}
           </View>
 
           <Text style={styles.localizacaoTitulo}>
-            Sua localização
+            {descricao.titulo}
           </Text>
 
           <Text style={styles.localizacaoDescricao}>
-            Sua posição está sendo compartilhada com sua família.
+            {descricao.detalhe}
           </Text>
+
+          {descricao.acao && (
+            <TouchableOpacity
+              style={styles.botaoPermitir}
+              onPress={estadoLocalizacao.tentarNovamente}
+            >
+              <Text style={styles.botaoPermitirTexto}>
+                {descricao.acao}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.verMapa}>
             <Text style={styles.verMapaTexto}>
@@ -342,10 +333,33 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
 
+  bolinhaOffline: {
+    backgroundColor: cores.offline,
+  },
+
   statusTexto: {
     fontSize: 12,
     fontFamily: fontes.destaque,
     color: cores.online,
+  },
+
+  statusTextoOffline: {
+    color: cores.offline,
+  },
+
+  botaoPermitir: {
+    alignSelf: 'flex-start',
+    marginTop: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: raio.pilula,
+    backgroundColor: cores.primaria,
+  },
+
+  botaoPermitirTexto: {
+    color: cores.textoSobrePrimaria,
+    fontSize: 14,
+    fontFamily: fontes.destaque,
   },
 
   miniMapaContainer: {

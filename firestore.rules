@@ -89,6 +89,27 @@ service cloud.firestore {
             && ehMembroDepois(novoGrupo));
     }
 
+    // Última localização conhecida (familiares/{uid}).
+    // uid, grupoId e nome não vêm "de confiança" do app: são
+    // conferidos com usuarios/{uid}, e o grupo com o array de membros.
+    function localizacaoValida(userId) {
+      let dados = request.resource.data;
+      let perfil = get(caminhoUsuario(meuUid())).data;
+      return autenticado()
+        && meuUid() == userId
+        && dados.keys().hasAll(['uid', 'grupoId', 'nome', 'latitude', 'longitude', 'atualizadoEm'])
+        && dados.keys().hasOnly(['uid', 'grupoId', 'nome', 'latitude', 'longitude', 'precisao', 'atualizadoEm', 'online'])
+        && dados.uid == meuUid()
+        && dados.grupoId == perfil.get('grupoId', null)
+        && ehMembro(dados.grupoId)
+        && dados.nome == perfil.get('nome', null)
+        && dados.latitude is number && dados.latitude >= -90 && dados.latitude <= 90
+        && dados.longitude is number && dados.longitude >= -180 && dados.longitude <= 180
+        && (!('precisao' in dados) || (dados.precisao is number && dados.precisao >= 0))
+        && dados.atualizadoEm == request.time
+        && (!('online' in dados) || dados.online is bool);
+    }
+
     function conviteNovoValido(conviteId) {
       let dados = request.resource.data;
       return autenticado()
@@ -250,11 +271,10 @@ service cloud.firestore {
     // ---------------------------------------------------
 
     match /familiares/{userId} {
+      // Somente membros da família dona da localização.
       allow read: if ehMembro(resource.data.grupoId);
 
-      allow create, update: if autenticado()
-        && meuUid() == userId
-        && ehMembro(request.resource.data.grupoId);
+      allow create, update: if localizacaoValida(userId);
 
       allow delete: if autenticado() && meuUid() == userId;
     }

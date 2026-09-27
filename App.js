@@ -40,6 +40,7 @@ import ConquistaScreen from './src/conquista/ConquistaScreen';
 
 import AutenticacaoScreen from './src/autenticacao/AutenticacaoScreen';
 import GrupoScreen from './src/grupo/GrupoScreen';
+import { useCompartilharLocalizacao } from './src/mapa/compartilharLocalizacao';
 
 import {
   cores,
@@ -189,6 +190,13 @@ export default function App() {
 
     verificarGrupo();
   }, [usuario]);
+
+  // Compartilha a localização enquanto o app estiver em uso
+  // (somente para usuário autenticado que pertence a uma família).
+  const localizacao = useCompartilharLocalizacao(
+    perfil,
+    temGrupo ? grupoId : null
+  );
 
   if (!fontsLoaded) {
     return null;
@@ -400,6 +408,7 @@ export default function App() {
       <TelaMapa
         usuario={perfil}
         grupoId={grupoId}
+        localizacao={localizacao}
       />
     );
   } else if (tela === 'camera') {
@@ -467,6 +476,7 @@ export default function App() {
       <Menu
         onSelect={setTela}
         nome={perfil?.nome}
+        localizacao={localizacao}
       />
     );
   }
