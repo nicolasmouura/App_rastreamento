@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { signOut } from 'firebase/auth';
 
 import { auth } from '../config/firebase';
+import { normalizarEmailCadastro as normalizarEmail } from './salvarUsuario';
 
 /*
  * Acesso rápido por biometria: uma trava LOCAL sobre a sessão do
@@ -208,10 +209,6 @@ export async function decidirAcessoRestaurado(usuarioFirebase) {
   await signOut(auth);
 
   return 'login';
-}
-
-function normalizarEmail(email) {
-  return (email || '').trim().toLowerCase();
 }
 
 // O e-mail digitado é o da sessão guardada neste aparelho?

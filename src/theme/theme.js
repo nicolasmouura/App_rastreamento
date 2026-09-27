@@ -7,8 +7,6 @@ export const cores = {
   // Cor de ação principal (botões, destaques)
   primaria: '#0754D9',
 
-  primariaEscura: '#003DB5',
-
   // Fundo e superfícies
   fundo: '#F4F8FF',
 
@@ -43,8 +41,6 @@ export const fontes = {
   titulo: 'Poppins_700Bold',
 
   destaque: 'Poppins_600SemiBold',
-
-  corpo: undefined, // usa a fonte padrão do sistema
 
 };
 

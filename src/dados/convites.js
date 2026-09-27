@@ -13,7 +13,11 @@ import {
 
 import { auth, db } from '../config/firebase';
 import { buscarGrupoPorId, garantirSemFamilia } from './grupo';
-import { chaveDiretorio, normalizarNome } from './salvarUsuario';
+import {
+  chaveDiretorio,
+  normalizarEmailCadastro as normalizarEmail,
+  normalizarNome,
+} from './salvarUsuario';
 
 const EMAIL_VALIDO = /^[^@/\s]+@[^@/\s]+\.[^@/\s]+$/;
 
@@ -25,15 +29,10 @@ const MENSAGENS = {
   USUARIO_NAO_ENCONTRADO: 'Usuário não encontrado. Confira o nome completo e o e-mail cadastrado.',
   CONVITE_JA_PENDENTE: 'Já existe um convite pendente para este usuário.',
   JA_E_MEMBRO: 'Este usuário já faz parte da família.',
-  CONVITE_INDISPONIVEL: 'Este convite não está mais disponível.',
 };
 
 export function mensagemDeErro(erro, mensagemPadrao) {
   return MENSAGENS[erro?.message] || mensagemPadrao;
-}
-
-export function normalizarEmail(email) {
-  return (email || '').trim().toLowerCase();
 }
 
 // Um convite por família + e-mail. As regras do Firestore

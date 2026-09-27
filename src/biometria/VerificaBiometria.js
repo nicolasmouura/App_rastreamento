@@ -24,9 +24,6 @@ import { cores, fontes, raio } from '../theme/theme';
 // Espera o usuário parar de digitar o e-mail antes de abrir a biometria.
 const ESPERA_APOS_DIGITAR = 600;
 
-const MENSAGEM_INDISPONIVEL =
-  'A biometria não está disponível neste aparelho. Digite sua senha para continuar.';
-
 /*
  * Parte biométrica da tela de login (não é uma tela à parte).
  * Quando o e-mail digitado é o da sessão guardada neste aparelho e a
@@ -139,7 +136,7 @@ export default function VerificaBiometria({ email, sessao, onDesbloqueado, onUsa
     }
 
     if (decisao === 'indisponivel') {
-      encerrar(MENSAGEM_INDISPONIVEL);
+      encerrar(proximoPasso('indisponivel', falhasRef.current).mensagem);
       return;
     }
 
