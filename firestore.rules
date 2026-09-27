@@ -70,7 +70,16 @@ service cloud.firestore {
         && textoOpcional(dados, 'telefone', 20)
         && textoOpcional(dados, 'documento', 20)
         && textoOpcional(dados, 'endereco', 120)
-        && textoOpcional(dados, 'atualizadoEm', 40);
+        && textoOpcional(dados, 'atualizadoEm', 40)
+        && fotoValida(dados);
+    }
+
+    // Foto de perfil: miniatura JPEG em base64 (data URI), até 100.000 caracteres.
+    function fotoValida(dados) {
+      return !('foto' in dados)
+        || (dados.foto is string
+            && dados.foto.size() <= 100000
+            && dados.foto.matches('^data:image/jpeg;base64,[A-Za-z0-9+/=]+$'));
     }
 
     // CPF é guardado no campo "documento" no formato 000.000.000-00.
@@ -111,7 +120,7 @@ service cloud.firestore {
       return autenticado()
         && meuUid() == userId
         && dados.keys().hasAll(['uid', 'grupoId', 'nome', 'latitude', 'longitude', 'atualizadoEm'])
-        && dados.keys().hasOnly(['uid', 'grupoId', 'nome', 'latitude', 'longitude', 'precisao', 'atualizadoEm', 'online'])
+        && dados.keys().hasOnly(['uid', 'grupoId', 'nome', 'latitude', 'longitude', 'precisao', 'atualizadoEm', 'online', 'rua', 'emCasa', 'distanciaCasa'])
         && dados.uid == meuUid()
         && dados.grupoId == perfil.get('grupoId', null)
         && ehMembro(dados.grupoId)
@@ -120,7 +129,39 @@ service cloud.firestore {
         && dados.longitude is number && dados.longitude >= -180 && dados.longitude <= 180
         && (!('precisao' in dados) || (dados.precisao is number && dados.precisao >= 0))
         && dados.atualizadoEm == request.time
-        && (!('online' in dados) || dados.online is bool);
+        && (!('online' in dados) || dados.online is bool)
+        && derivadosDaCasaValidos(dados);
+    }
+
+    // Etapa 11: derivados publicados pelo próprio usuário. A casa em si
+    // (endereço/coordenadas) nunca entra aqui. A distância precisa estar
+    // arredondada (100 m até 1 km; 500 m acima) para não expor a casa.
+    function derivadosDaCasaValidos(dados) {
+      return (!('rua' in dados) || (dados.rua is string && dados.rua.size() <= 120))
+        && (!('emCasa' in dados) || dados.emCasa is bool)
+        && (!('distanciaCasa' in dados) || (
+          dados.distanciaCasa is int
+          && dados.distanciaCasa >= 0
+          && dados.distanciaCasa <= 40000000
+          && ((dados.distanciaCasa < 1000 && dados.distanciaCasa % 100 == 0)
+              || dados.distanciaCasa % 500 == 0)
+        ));
+    }
+
+    // Meus lugares (usuarios/{uid}/lugares/{lugarId}): PRIVADOS.
+    function lugarValido(userId, lugarId) {
+      let dados = request.resource.data;
+      return autenticado()
+        && meuUid() == userId
+        && lugarId.matches('^(casa|trabalho|escola|outro_[a-z0-9]{1,20})$')
+        && dados.keys().hasAll(['tipo', 'nome', 'endereco', 'latitude', 'longitude', 'atualizadoEm'])
+        && dados.keys().hasOnly(['tipo', 'nome', 'endereco', 'latitude', 'longitude', 'atualizadoEm'])
+        && dados.tipo == (lugarId.matches('^outro_.*') ? 'outro' : lugarId)
+        && dados.nome is string && dados.nome.size() > 0 && dados.nome.size() <= 40
+        && dados.endereco is string && dados.endereco.size() > 0 && dados.endereco.size() <= 200
+        && dados.latitude is number && dados.latitude >= -90 && dados.latitude <= 90
+        && dados.longitude is number && dados.longitude >= -180 && dados.longitude <= 180
+        && dados.atualizadoEm == request.time;
     }
 
     // Família atual do dono do histórico (lida de usuarios/{uid}).
@@ -245,7 +286,7 @@ service cloud.firestore {
 
       allow create: if autenticado()
         && meuUid() == userId
-        && request.resource.data.keys().hasOnly(['nome', 'email', 'uid', 'criadoEm', 'grupoId', 'telefone', 'documento', 'endereco', 'atualizadoEm'])
+        && request.resource.data.keys().hasOnly(['nome', 'email', 'uid', 'criadoEm', 'grupoId', 'telefone', 'documento', 'endereco', 'atualizadoEm', 'foto'])
         && request.resource.data.get('uid', userId) == userId
         && (!('email' in request.resource.data) || request.resource.data.email.lower() == meuEmail())
         && dadosPessoaisValidos(request.resource.data)
@@ -256,7 +297,7 @@ service cloud.firestore {
       // depois de preenchido. grupoId só muda pelo fluxo de família/convite.
       allow update: if autenticado()
         && meuUid() == userId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'telefone', 'documento', 'endereco', 'atualizadoEm', 'grupoId'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'telefone', 'documento', 'endereco', 'atualizadoEm', 'grupoId', 'foto'])
         && dadosPessoaisValidos(request.resource.data)
         && documentoImutavel()
         && vinculoDeFamiliaValido(resource.data.get('grupoId', null));
@@ -265,6 +306,13 @@ service cloud.firestore {
 
       match /conquistas/{conquistaId} {
         allow read, write: if autenticado() && meuUid() == userId;
+      }
+
+      // Só o dono lê e altera os próprios lugares. A leitura do perfil
+      // pela família (acima) NÃO se aplica a esta subcoleção.
+      match /lugares/{lugarId} {
+        allow read, delete: if autenticado() && meuUid() == userId;
+        allow create, update: if lugarValido(userId, lugarId);
       }
     }
 

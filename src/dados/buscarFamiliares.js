@@ -176,6 +176,10 @@ export function montarMarcadores({
       recente,
       situacao: recente ? 'Localização atual' : 'Última localização',
       detalhe: descreverAtualizacao(atualizadoEm, agora),
+      // Derivados publicados pelo próprio familiar (Etapa 11).
+      rua: localizacao?.rua ?? null,
+      emCasa: localizacao?.emCasa ?? null,
+      distanciaCasa: localizacao?.distanciaCasa ?? null,
     });
   }
 
@@ -223,7 +227,11 @@ export function deveEnviarLocalizacao(ultimoEnvio, coordenadas, agora) {
  * "precisao" some quando o aparelho não a informa.
  * As regras conferem uid, grupoId e nome com usuarios/{uid}.
  */
-export async function salvarLocalizacao({ uid, grupoId, nome, coordenadas }) {
+/*
+ * rua / estadoCasa (opcionais): derivados calculados neste aparelho
+ * (enderecos.js / lugares.js). A casa em si nunca é enviada.
+ */
+export async function salvarLocalizacao({ uid, grupoId, nome, coordenadas, rua, estadoCasa }) {
   const localizacao = {
     uid,
     grupoId,
@@ -236,6 +244,15 @@ export async function salvarLocalizacao({ uid, grupoId, nome, coordenadas }) {
 
   if (typeof coordenadas.accuracy === 'number' && coordenadas.accuracy >= 0) {
     localizacao.precisao = Math.round(coordenadas.accuracy);
+  }
+
+  if (typeof rua === 'string' && rua) {
+    localizacao.rua = rua.slice(0, 120);
+  }
+
+  if (estadoCasa) {
+    localizacao.emCasa = estadoCasa.emCasa;
+    localizacao.distanciaCasa = estadoCasa.distanciaCasa;
   }
 
   await setDoc(doc(db, 'familiares', uid), localizacao);

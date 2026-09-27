@@ -1,0 +1,110 @@
+import {
+  collection,
+  doc,
+  getDocs,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
+} from 'firebase/firestore';
+
+import { db } from '../config/firebase';
+import { coordenadaValida, distanciaEmMetros } from './buscarFamiliares';
+
+/*
+ * Meus lugares: usuarios/{uid}/lugares/{lugarId} — PRIVADO.
+ * Só o dono lê e grava (firestore.rules). A família nunca recebe
+ * endereço nem coordenadas; recebe apenas o que o aparelho do dono
+ * calcula e publica em familiares/{uid} (emCasa, distanciaCasa).
+ *
+ * Nesta etapa só a Casa é usada; os demais tipos já têm id e regra.
+ */
+export const TIPOS_LUGAR = [
+  { id: 'casa', nome: 'Casa', icone: 'home', obrigatorio: true },
+  { id: 'trabalho', nome: 'Trabalho', icone: 'briefcase', emBreve: true },
+  { id: 'escola', nome: 'Escola', icone: 'book-open', emBreve: true },
+  { id: 'outro', nome: 'Outro', icone: 'map-pin', emBreve: true },
+];
+
+// "Em casa": raio base + a imprecisão do GPS (com teto) para entrar;
+// só sai acima do raio de saída (histerese contra oscilação).
+export const RAIO_CASA = 150;
+export const MARGEM_PRECISAO_MAX = 100;
+export const RAIO_SAIDA_CASA = 300;
+
+function referenciaLugar(uid, lugarId) {
+  return doc(db, 'usuarios', uid, 'lugares', lugarId);
+}
+
+// Lugares do próprio usuário: { casa: {...}, ... }.
+export async function buscarLugares(uid) {
+  const resultado = await getDocs(collection(db, 'usuarios', uid, 'lugares'));
+
+  return Object.fromEntries(
+    resultado.docs.map((documento) => [documento.id, { id: documento.id, ...documento.data() }])
+  );
+}
+
+// Um lugar do próprio usuário em tempo real (1 documento).
+export function observarLugar(uid, lugarId, callback, onErro) {
+  return onSnapshot(
+    referenciaLugar(uid, lugarId),
+    (documento) => callback(documento.exists() ? { id: documento.id, ...documento.data() } : null),
+    onErro
+  );
+}
+
+export async function salvarLugar(uid, lugarId, { endereco, latitude, longitude }) {
+  const tipo = TIPOS_LUGAR.find((item) => item.id === lugarId);
+
+  if (!tipo) throw new Error('LUGAR_INVALIDO');
+  if (!coordenadaValida(latitude, longitude)) throw new Error('COORDENADA_INVALIDA');
+  if (!endereco || !endereco.trim()) throw new Error('ENDERECO_OBRIGATORIO');
+
+  await setDoc(referenciaLugar(uid, lugarId), {
+    tipo: tipo.id,
+    nome: tipo.nome,
+    endereco: endereco.trim().slice(0, 200),
+    latitude,
+    longitude,
+    atualizadoEm: serverTimestamp(),
+  });
+}
+
+/*
+ * Distância publicada para a família, arredondada para dificultar
+ * estimar a posição da casa: até 1 km em múltiplos de 100 m
+ * (mínimo 100 m), acima disso em múltiplos de 500 m.
+ */
+export function arredondarDistanciaCasa(metros) {
+  if (metros < 1000) {
+    return Math.max(100, Math.round(metros / 100) * 100);
+  }
+
+  return Math.round(metros / 500) * 500;
+}
+
+/*
+ * Estado em relação à casa, calculado no aparelho do dono.
+ * posicao: { latitude, longitude }; precisao: metros (opcional);
+ * estavaEmCasa: estado anterior (histerese).
+ */
+export function calcularEstadoCasa({ posicao, precisao, casa, estavaEmCasa }) {
+  if (!casa || !posicao || !coordenadaValida(posicao.latitude, posicao.longitude)) {
+    return null;
+  }
+
+  const distancia = distanciaEmMetros(casa, posicao);
+  const margem = Math.min(
+    typeof precisao === 'number' && precisao > 0 ? precisao : 0,
+    MARGEM_PRECISAO_MAX
+  );
+
+  const emCasa = estavaEmCasa
+    ? distancia <= RAIO_SAIDA_CASA
+    : distancia <= RAIO_CASA + margem;
+
+  return {
+    emCasa,
+    distanciaCasa: emCasa ? 0 : arredondarDistanciaCasa(distancia),
+  };
+}

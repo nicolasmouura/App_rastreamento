@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import Mapa from './Mapa';
 import StatusLocalizacao from './StatusLocalizacao';
+import CardsFamiliares from './CardsFamiliares';
 import { descreverLocalizacao } from './compartilharLocalizacao';
 
 import {
@@ -11,6 +12,9 @@ import {
   observarFamiliares,
 } from '../dados/buscarFamiliares';
 import { observarMembros } from '../dados/grupo';
+import { buscarPerfisDosMembros } from '../dados/salvarUsuario';
+import { montarCardsFamiliares } from '../dados/presencaFamiliar';
+import { observarLugar } from '../dados/lugares';
 
 // Atualiza os textos "Atualizado há X min" sem novas leituras.
 const INTERVALO_RELOGIO = 30 * 1000;
@@ -23,6 +27,24 @@ export default function TelaMapa({ usuario, grupoId, localizacao }) {
   const [localizacoes, setLocalizacoes] = useState(null);
   const [erro, setErro] = useState('');
   const [agora, setAgora] = useState(Date.now());
+
+  // Fotos (usuarios/{uid}.foto) dos membros, lidas uma vez por membro.
+  const [perfis, setPerfis] = useState({});
+
+  // Minha casa (privada: só eu leio). undefined = carregando.
+  const [minhaCasa, setMinhaCasa] = useState(undefined);
+
+  useEffect(() => {
+    if (!usuario?.uid) return;
+
+    return observarLugar(usuario.uid, 'casa', setMinhaCasa, (e) => {
+      console.log('Casa indisponível:', e.code || e.message);
+    });
+  }, [usuario?.uid]);
+
+  // Familiar selecionado no card/marcador e pedido de centralização.
+  const [selecionado, setSelecionado] = useState(null);
+  const [foco, setFoco] = useState(null);
 
   // Um listener para os membros e um para as localizações da família.
   // Ambos são encerrados ao sair do mapa.
@@ -50,6 +72,27 @@ export default function TelaMapa({ usuario, grupoId, localizacao }) {
       cancelarLocalizacoes();
     };
   }, [grupoId]);
+
+  // Recarrega as fotos só quando alguém entra ou sai da família.
+  const uidsMembros = (membros || [])
+    .filter((membro) => membro.status === 'ativo')
+    .map((membro) => membro.uid)
+    .sort()
+    .join(',');
+
+  useEffect(() => {
+    if (!uidsMembros) return;
+
+    let ativo = true;
+
+    buscarPerfisDosMembros(uidsMembros.split(',')).then((resultado) => {
+      if (ativo) setPerfis(resultado);
+    });
+
+    return () => {
+      ativo = false;
+    };
+  }, [uidsMembros]);
 
   useEffect(() => {
     const relogio = setInterval(
@@ -95,6 +138,40 @@ export default function TelaMapa({ usuario, grupoId, localizacao }) {
     ]
   );
 
+  // Minha referência para a distância: posição atual (GPS) ou, na
+  // falta dela, minha última posição conhecida.
+  const meuMarcador = marcadores.find((marcador) => marcador.voce) || null;
+
+  const cards = useMemo(
+    () =>
+      montarCardsFamiliares({
+        marcadores,
+        semLocalizacao,
+        perfis,
+        minhaPosicao: meuMarcador,
+        minhaCasa,
+        agora,
+      }),
+    [marcadores, semLocalizacao, perfis, meuMarcador, minhaCasa, agora]
+  );
+
+  // Marcadores com a mesma foto/status dos cards (consistência).
+  const marcadoresNoMapa = useMemo(() => {
+    const cardPorUid = Object.fromEntries(cards.map((card) => [card.uid, card]));
+
+    return marcadores.map((marcador) => ({
+      ...marcador,
+      foto: cardPorUid[marcador.uid]?.foto || null,
+      online: cardPorUid[marcador.uid]?.online || false,
+      visto: cardPorUid[marcador.uid]?.visto || marcador.detalhe,
+    }));
+  }, [marcadores, cards]);
+
+  function selecionar(uid) {
+    setSelecionado(uid);
+    setFoco((atual) => ({ uid, pedido: (atual?.pedido || 0) + 1 }));
+  }
+
   const descricao = descreverLocalizacao(localizacao);
   const linhas = [descricao.titulo, descricao.detalhe];
 
@@ -108,32 +185,32 @@ export default function TelaMapa({ usuario, grupoId, localizacao }) {
     if (marcadores.length === 0) {
       linhas.push('Nenhuma localização disponível.');
     }
-
-    const outrosSemLocalizacao = semLocalizacao
-      .filter((pessoa) => !pessoa.voce)
-      .map((pessoa) =>
-        pessoa.motivo === 'invalida'
-          ? `${pessoa.nome} (localização inválida)`
-          : pessoa.nome
-      );
-
-    if (outrosSemLocalizacao.length > 0) {
-      linhas.push(`Localização indisponível: ${outrosSemLocalizacao.join(', ')}`);
-    }
   }
 
   return (
     <View style={styles.container}>
       <StatusBar style="auto" hidden />
 
-      <Mapa
-        marcadores={marcadores}
-        pronto={pronto}
-      />
+      <View style={styles.areaMapa}>
+        <Mapa
+          marcadores={marcadoresNoMapa}
+          pronto={pronto}
+          selecionado={selecionado}
+          foco={foco}
+          onSelecionar={selecionar}
+          minhaCasa={minhaCasa}
+        />
 
-      <StatusLocalizacao
-        ativo={descricao.ativo}
-        texto={linhas.join('\n')}
+        <StatusLocalizacao
+          ativo={descricao.ativo}
+          texto={linhas.join('\n')}
+        />
+      </View>
+
+      <CardsFamiliares
+        cards={cards}
+        selecionado={selecionado}
+        onSelecionar={selecionar}
       />
     </View>
   );
@@ -141,6 +218,10 @@ export default function TelaMapa({ usuario, grupoId, localizacao }) {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+
+  areaMapa: {
     flex: 1,
   },
 });

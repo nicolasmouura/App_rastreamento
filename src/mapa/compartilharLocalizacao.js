@@ -11,6 +11,8 @@ import {
   deveRegistrarHistorico,
   registrarPontoHistorico,
 } from '../dados/historico';
+import { calcularEstadoCasa, observarLugar } from '../dados/lugares';
+import { criarCacheRua } from '../dados/enderecos';
 
 // Precisão "Balanced" (Wi-Fi/rede, ~100 m) gasta bem menos bateria que o GPS puro.
 // timeInterval vale no Android; o envio ao Firebase é filtrado em deveEnviarLocalizacao.
@@ -79,6 +81,23 @@ export function useCompartilharLocalizacao(usuario, grupoId) {
     let ultimaTela = null;
     let enviando = false;
 
+    // Etapa 11: casa (privada, só deste usuário) e rua atual, usadas
+    // para publicar apenas derivados: emCasa, distanciaCasa e rua.
+    let casa = null;
+    let estavaEmCasa = false;
+    const ruaAtual = criarCacheRua();
+
+    const cancelarCasa = observarLugar(
+      uid,
+      'casa',
+      (lugar) => {
+        casa = lugar;
+        // Casa alterada: o próximo sinal do GPS já publica o novo estado.
+        ultimoEnvio = null;
+      },
+      (erro) => console.log('Casa indisponível:', erro.code || erro.message)
+    );
+
     async function registrarPosicao({ coords }) {
       if (!ativo) return;
 
@@ -105,12 +124,25 @@ export function useCompartilharLocalizacao(usuario, grupoId) {
       enviando = true;
 
       try {
+        const estadoCasa = calcularEstadoCasa({
+          posicao: coords,
+          precisao: coords.accuracy,
+          casa,
+          estavaEmCasa,
+        });
+
+        const rua = await ruaAtual(coords, agora);
+
         await salvarLocalizacao({
           uid,
           grupoId,
           nome: nomeRef.current,
           coordenadas: coords,
+          rua,
+          estadoCasa,
         });
+
+        estavaEmCasa = estadoCasa?.emCasa ?? false;
 
         ultimoEnvio = { latitude: coords.latitude, longitude: coords.longitude, em: agora };
 
@@ -213,6 +245,7 @@ export function useCompartilharLocalizacao(usuario, grupoId) {
 
     return () => {
       ativo = false;
+      cancelarCasa();
 
       if (assinatura) {
         assinatura.remove();

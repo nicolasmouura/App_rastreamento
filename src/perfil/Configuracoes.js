@@ -20,6 +20,7 @@ import {
   salvarPreferencia,
 } from '../dados/biometria';
 import EditarInformacoes from './EditarInformacoes';
+import MeusLugares from '../lugares/MeusLugares';
 import { cores, fontes } from '../theme/theme';
 
 const ITENS = [
@@ -27,6 +28,11 @@ const ITENS = [
     chave: 'editar',
     label: 'Editar informações',
     icone: 'edit-2',
+  },
+  {
+    chave: 'lugares',
+    label: 'Meus lugares',
+    icone: 'home',
   },
   {
     chave: 'notificacoes',
@@ -95,9 +101,13 @@ export default function Configuracoes({
   usuario,
   perfil,
   onSalvarPerfil,
+  posicaoAtual,
   onSair,
 }) {
   const [editarAberto, setEditarAberto] =
+    useState(false);
+
+  const [lugaresAberto, setLugaresAberto] =
     useState(false);
 
   const [notificacoesAbertas, setNotificacoesAbertas] =
@@ -175,6 +185,11 @@ export default function Configuracoes({
   }
 
   function tocarOpcao(chave) {
+    if (chave === 'lugares') {
+      setLugaresAberto(true);
+      return;
+    }
+
     if (chave === 'editar') {
       if (!perfil) {
         Alert.alert(
@@ -270,6 +285,16 @@ export default function Configuracoes({
           onPress: onSair,
         },
       ]
+    );
+  }
+
+  if (lugaresAberto) {
+    return (
+      <MeusLugares
+        usuario={usuario}
+        posicaoAtual={posicaoAtual}
+        onVoltar={() => setLugaresAberto(false)}
+      />
     );
   }
 

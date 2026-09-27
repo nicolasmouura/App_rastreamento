@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 
 import * as ImagePicker from 'expo-image-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { signOut } from 'firebase/auth';
 
@@ -24,7 +23,9 @@ import { auth } from '../config/firebase';
 import {
   atualizarPerfil,
   buscarPerfil,
+  salvarFotoPerfil,
 } from '../dados/salvarUsuario';
+import { gerarMiniatura } from '../dados/fotoPerfil';
 import {
   cores,
   fontes,
@@ -36,10 +37,11 @@ export default function PerfilScreen({
   usuario,
   onSair,
   onPerfilAtualizado,
+  posicaoAtual,
   visitas = [],
 }) {
   const [abrirCamera, setAbrirCamera] = useState(false);
-  const [fotoPerfil, setFotoPerfil] = useState(null);
+  const [salvandoFoto, setSalvandoFoto] = useState(false);
 
   // Dados pessoais vindos de usuarios/{uid}
   const [dadosPerfil, setDadosPerfil] = useState(null);
@@ -101,57 +103,31 @@ export default function PerfilScreen({
     return salvos;
   }
 
-  const chaveFoto = usuario?.uid
-    ? `@appintegrado:fotoPerfil:${usuario.uid}`
-    : null;
-
-  useEffect(() => {
-    async function carregarFotoSalva() {
-      if (!chaveFoto) {
-        setFotoPerfil(null);
-        return;
-      }
-
-      try {
-        const uriSalva =
-          await AsyncStorage.getItem(
-            chaveFoto
-          );
-
-        setFotoPerfil(uriSalva || null);
-      } catch (error) {
-        console.error(
-          'Erro ao carregar foto salva:',
-          error
-        );
-      }
-    }
-
-    carregarFotoSalva();
-  }, [chaveFoto]);
-
+  /*
+   * A foto vira uma miniatura (fotoPerfil.gerarMiniatura) e é salva em
+   * usuarios/{uid}.foto: aparece em qualquer aparelho e para a família.
+   */
   async function salvarFoto(uri) {
-    setFotoPerfil(uri);
-
-    if (!chaveFoto) {
-      return;
-    }
-
     try {
-      await AsyncStorage.setItem(
-        chaveFoto,
-        uri
-      );
+      setSalvandoFoto(true);
+
+      const foto = await gerarMiniatura(uri);
+
+      await salvarFotoPerfil(usuario.uid, foto);
+
+      setDadosPerfil((atual) => ({ ...atual, foto }));
     } catch (error) {
-      console.error(
-        'Erro ao salvar foto:',
-        error
+      console.log(
+        'Foto não salva:',
+        error.code || error.message
       );
 
       Alert.alert(
         'Erro',
-        'Não foi possível salvar a foto.'
+        'Não foi possível salvar a foto. Tente novamente.'
       );
+    } finally {
+      setSalvandoFoto(false);
     }
   }
 
@@ -331,7 +307,7 @@ export default function PerfilScreen({
             {dadosPerfil ? (
               <DadosUsuario
                 perfil={dadosPerfil}
-                foto={fotoPerfil}
+                salvandoFoto={salvandoFoto}
                 onAlterarFoto={
                   escolherFoto
                 }
@@ -467,6 +443,7 @@ export default function PerfilScreen({
               usuario={usuario}
               perfil={dadosPerfil}
               onSalvarPerfil={salvarPerfil}
+              posicaoAtual={posicaoAtual}
               onSair={
                 sairDoAplicativo
               }

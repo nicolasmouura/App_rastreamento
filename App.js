@@ -371,6 +371,7 @@ export default function App() {
     conteudo = (
       <PerfilScreen
         usuario={perfil}
+        posicaoAtual={localizacao.coordenadas}
         visitas={visitasExplorar}
         onSair={sairDoAplicativo}
         onPerfilAtualizado={({ nome }) =>

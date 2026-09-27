@@ -1,6 +1,7 @@
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
+import FotoPerfil from './FotoPerfil';
 import { mascararDocumento } from '../dados/salvarUsuario';
 import { cores, fontes, raio } from '../theme/theme';
 
@@ -19,25 +20,32 @@ function Informacao({ icone, label, valor }) {
 
 // Foto + dados pessoais do usuário ("Meu Perfil"). A edição fica em
 // Configurações → Editar informações.
-export default function DadosUsuario({ perfil, foto, onAlterarFoto }) {
+export default function DadosUsuario({ perfil, salvandoFoto, onAlterarFoto }) {
   return (
     <View style={styles.container}>
 
-      <View style={styles.foto}>
-        {foto ? (
-          <Image
-            source={{ uri: foto }}
-            style={styles.imagem}
-          />
-        ) : (
-          <Feather name="user" size={44} color={cores.textoSecundario} />
+      <View>
+        <FotoPerfil foto={perfil.foto} tamanho={110} />
+
+        {salvandoFoto && (
+          <View style={styles.salvandoFoto}>
+            <ActivityIndicator color={cores.textoSobrePrimaria} />
+          </View>
         )}
       </View>
 
-      <TouchableOpacity style={styles.alterarFotoBotao} onPress={onAlterarFoto}>
+      <TouchableOpacity
+        style={styles.alterarFotoBotao}
+        onPress={onAlterarFoto}
+        disabled={salvandoFoto}
+      >
         <Feather name="camera" size={15} color={cores.primaria} />
         <Text style={styles.alterarFoto}>
-          Alterar foto
+          {salvandoFoto
+            ? 'Salvando foto...'
+            : perfil.foto
+            ? 'Alterar foto'
+            : 'Adicionar foto'}
         </Text>
       </TouchableOpacity>
 
@@ -70,19 +78,12 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 
-  foto: {
-    width: 110,
-    height: 110,
+  salvandoFoto: {
+    ...StyleSheet.absoluteFillObject,
     borderRadius: 55,
-    backgroundColor: cores.superficieAlternativa,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-  },
-
-  imagem: {
-    width: '100%',
-    height: '100%',
   },
 
   alterarFotoBotao: {

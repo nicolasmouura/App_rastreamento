@@ -1,4 +1,4 @@
-import { doc, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 
 import { auth, db } from '../config/firebase';
 
@@ -278,6 +278,20 @@ export function mascararDocumento(documento) {
     })
     .reverse()
     .join('');
+}
+
+/*
+ * Foto de perfil (miniatura gerada por fotoPerfil.gerarMiniatura).
+ * Fica no próprio usuarios/{uid}: o dono grava, a família lê.
+ */
+export async function salvarFotoPerfil(uid, foto) {
+  await setDoc(
+    doc(db, 'usuarios', uid),
+    { foto, atualizadoEm: new Date().toISOString() },
+    { merge: true }
+  );
+
+  console.log('Foto de perfil salva:', uid);
 }
 
 /*
