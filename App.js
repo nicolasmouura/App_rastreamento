@@ -60,7 +60,6 @@ export default function App() {
   const [pulouGrupo, setPulouGrupo] = useState(false);
   const [verificandoGrupo, setVerificandoGrupo] = useState(false);
   const [tela, setTela] = useState('menu');
-  const [familiares, setFamiliares] = useState([]);
 
   // Ponto que está sendo registrado pela câmera
   const [pontoEmRegistro, setPontoEmRegistro] = useState(null);
@@ -168,6 +167,17 @@ export default function App() {
         console.error(
           'Erro ao verificar grupo ou carregar conquistas:',
           e
+        );
+
+        setPerfil((perfilAtual) =>
+          perfilAtual || {
+            uid: usuario.uid,
+            nome:
+              usuario.nome ||
+              usuario.displayName ||
+              'Usuário',
+            email: usuario.email,
+          }
         );
 
         setTemGrupo(false);
@@ -331,7 +341,7 @@ export default function App() {
     );
   }
 
-  if (verificandoGrupo) {
+  if (verificandoGrupo || !perfil) {
     return (
       <SafeAreaProvider>
         <View
@@ -358,7 +368,7 @@ export default function App() {
       <SafeAreaProvider>
         <View style={styles.container}>
           <GrupoScreen
-            usuario={usuario}
+            usuario={perfil}
             onGrupoConcluido={(
               novoGrupoId
             ) => {
@@ -406,10 +416,6 @@ export default function App() {
   } else if (tela === 'familia') {
     conteudo = (
       <FamiliaScreen
-        familiares={familiares}
-        setFamiliares={
-          setFamiliares
-        }
         grupoId={grupoId}
         usuario={perfil}
         onGrupoConcluido={(

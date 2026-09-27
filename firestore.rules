@@ -1,0 +1,227 @@
+rules_version = '2';
+
+// Regras de segurança do Conecta.
+// Publicar em: Firebase Console > Firestore Database > Regras.
+// Tudo o que não estiver liberado abaixo é NEGADO.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------
+    // FUNÇÕES AUXILIARES
+    // ---------------------------------------------------
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function meuUid() {
+      return request.auth.uid;
+    }
+
+    function meuEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function caminhoUsuario(uid) {
+      return /databases/$(database)/documents/usuarios/$(uid);
+    }
+
+    function caminhoGrupo(grupoId) {
+      return /databases/$(database)/documents/grupos/$(grupoId);
+    }
+
+    function caminhoMembro(grupoId, uid) {
+      return /databases/$(database)/documents/grupos/$(grupoId)/membros/$(uid);
+    }
+
+    // Convite destinado ao usuário atual para essa família.
+    function caminhoMeuConvite(grupoId) {
+      return /databases/$(database)/documents/convites/$(grupoId + '_' + meuEmail());
+    }
+
+    function ehMembro(grupoId) {
+      return autenticado()
+        && meuUid() in get(caminhoGrupo(grupoId)).data.membros;
+    }
+
+    // Membro depois que o lote de gravações for aplicado.
+    function ehMembroDepois(grupoId) {
+      return meuUid() in getAfter(caminhoGrupo(grupoId)).data.membros;
+    }
+
+    function semFamilia() {
+      return !exists(caminhoUsuario(meuUid()))
+        || get(caminhoUsuario(meuUid())).data.get('grupoId', null) == null;
+    }
+
+    function nomeValido(nome) {
+      return nome is string && nome.size() > 0 && nome.size() <= 60;
+    }
+
+    // O grupoId do perfil só pode mudar de "vazio" para
+    // uma família da qual o usuário realmente é membro.
+    function vinculoDeFamiliaValido(grupoAnterior) {
+      let novoGrupo = request.resource.data.get('grupoId', null);
+      return novoGrupo == grupoAnterior
+        || (grupoAnterior == null
+            && novoGrupo is string
+            && ehMembroDepois(novoGrupo));
+    }
+
+    function conviteNovoValido(conviteId) {
+      let dados = request.resource.data;
+      return autenticado()
+        && dados.keys().hasOnly(['grupoId', 'grupoNome', 'deUid', 'deNome', 'paraEmail', 'status', 'criadoEm'])
+        && dados.deUid == meuUid()
+        && ehMembro(dados.grupoId)
+        && dados.paraEmail is string
+        && dados.paraEmail == dados.paraEmail.lower()
+        && dados.paraEmail.matches('^[^@/ ]+@[^@/ ]+[.][^@/ ]+$')
+        && dados.paraEmail != meuEmail()
+        && conviteId == dados.grupoId + '_' + dados.paraEmail
+        && dados.status == 'pendente'
+        && dados.grupoNome == get(caminhoGrupo(dados.grupoId)).data.nome
+        && dados.deNome == get(caminhoMembro(dados.grupoId, meuUid())).data.nome;
+    }
+
+    function respostaDeConviteValida() {
+      let dados = request.resource.data;
+      return autenticado()
+        && resource.data.status == 'pendente'
+        && resource.data.paraEmail == meuEmail()
+        && dados.diff(resource.data).affectedKeys().hasOnly(['status', 'paraUid', 'respondidoEm'])
+        && dados.paraUid == meuUid()
+        && (
+          dados.status == 'recusado'
+          || (dados.status == 'aceito'
+              && ehMembroDepois(resource.data.grupoId)
+              && existsAfter(caminhoMembro(resource.data.grupoId, meuUid())))
+        );
+    }
+
+    // ---------------------------------------------------
+    // USUÁRIOS (perfil + conquistas): somente o próprio dono
+    // ---------------------------------------------------
+
+    match /usuarios/{userId} {
+      allow read: if autenticado() && meuUid() == userId;
+
+      allow create: if autenticado()
+        && meuUid() == userId
+        && vinculoDeFamiliaValido(null);
+
+      allow update: if autenticado()
+        && meuUid() == userId
+        && request.resource.data.get('uid', userId) == userId
+        && vinculoDeFamiliaValido(resource.data.get('grupoId', null));
+
+      allow delete: if false;
+
+      match /conquistas/{conquistaId} {
+        allow read, write: if autenticado() && meuUid() == userId;
+      }
+    }
+
+    // ---------------------------------------------------
+    // FAMÍLIAS
+    // ---------------------------------------------------
+
+    match /grupos/{grupoId} {
+      // Somente membros leem a família. Não há listagem geral.
+      allow get: if autenticado() && meuUid() in resource.data.membros;
+      allow list: if false;
+
+      // Criar: o criador é o administrador e o único membro,
+      // não pode já ter família e o perfil é vinculado no mesmo lote.
+      allow create: if autenticado()
+        && request.resource.data.keys().hasOnly(['nome', 'administradorUid', 'membros', 'criadoEm'])
+        && nomeValido(request.resource.data.nome)
+        && request.resource.data.administradorUid == meuUid()
+        && request.resource.data.membros == [meuUid()]
+        && semFamilia()
+        && getAfter(caminhoUsuario(meuUid())).data.get('grupoId', null) == grupoId
+        && existsAfter(caminhoMembro(grupoId, meuUid()));
+
+      // Entrar: a única alteração permitida é o próprio usuário
+      // se adicionar em "membros", e somente se existir um convite
+      // PENDENTE para o e-mail dele que vira ACEITO no mesmo lote.
+      // nome, administradorUid e demais campos não podem mudar.
+      allow update: if autenticado()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['membros'])
+        && !(meuUid() in resource.data.membros)
+        && request.resource.data.membros.hasAll(resource.data.membros)
+        && request.resource.data.membros.size() == resource.data.membros.size() + 1
+        && meuUid() in request.resource.data.membros
+        && semFamilia()
+        && get(caminhoMeuConvite(grupoId)).data.status == 'pendente'
+        && getAfter(caminhoMeuConvite(grupoId)).data.status == 'aceito'
+        && getAfter(caminhoUsuario(meuUid())).data.get('grupoId', null) == grupoId
+        && existsAfter(caminhoMembro(grupoId, meuUid()));
+
+      allow delete: if false;
+
+      match /membros/{membroUid} {
+        allow read: if ehMembro(grupoId);
+
+        // Cada usuário só cria o PRÓPRIO registro, e somente se
+        // (após o lote) estiver no array "membros" da família.
+        allow create: if autenticado()
+          && membroUid == meuUid()
+          && ehMembroDepois(grupoId)
+          && request.resource.data.keys().hasOnly(['uid', 'nome', 'papel', 'status', 'entrouEm', 'conviteId'])
+          && request.resource.data.uid == meuUid()
+          && nomeValido(request.resource.data.nome)
+          && request.resource.data.status == 'ativo'
+          && request.resource.data.papel == (
+            getAfter(caminhoGrupo(grupoId)).data.administradorUid == meuUid()
+              ? 'administrador'
+              : 'membro'
+          );
+
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------------------------------------------------
+    // CONVITES: visíveis só para quem convidou, quem foi
+    // convidado e os membros da família.
+    // ---------------------------------------------------
+
+    match /convites/{conviteId} {
+      // Convite inexistente: membros podem verificar (antes de convidar)
+      // que ainda não há convite para aquele e-mail na própria família.
+      allow read: if autenticado() && (
+        (resource == null && ehMembro(conviteId.split('_')[0]))
+        || resource.data.paraEmail == meuEmail()
+        || resource.data.deUid == meuUid()
+        || ehMembro(resource.data.grupoId)
+      );
+
+      allow create: if conviteNovoValido(conviteId);
+
+      // Reenviar um convite recusado, ou o convidado responder.
+      allow update: if (resource.data.status == 'recusado' && conviteNovoValido(conviteId))
+        || respostaDeConviteValida();
+
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------
+    // LOCALIZAÇÃO (usada pelo mapa): somente membros da família
+    // ---------------------------------------------------
+
+    match /familiares/{userId} {
+      allow read: if ehMembro(resource.data.grupoId);
+
+      allow create, update: if autenticado()
+        && meuUid() == userId
+        && ehMembro(request.resource.data.grupoId);
+
+      allow delete: if autenticado() && meuUid() == userId;
+    }
+
+    // A coleção antiga "solicitacoes" (entrada por código)
+    // não é mais usada e fica bloqueada pela regra padrão.
+  }
+}

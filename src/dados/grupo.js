@@ -1,99 +1,69 @@
 import {
-  addDoc,
   collection,
-  query,
-  where,
-  getDocs,
   doc,
   getDoc,
+  onSnapshot,
+  setDoc,
+  writeBatch,
 } from 'firebase/firestore';
 
 import { db } from '../config/firebase';
 
-function gerarCodigoConvite() {
-  const caracteres = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+// Lança JA_POSSUI_FAMILIA se o usuário já estiver vinculado a um grupo.
+export async function garantirSemFamilia(uid) {
+  const perfil = await getDoc(doc(db, 'usuarios', uid));
 
-  let codigo = '';
-
-  for (let i = 0; i < 6; i++) {
-    codigo += caracteres.charAt(
-      Math.floor(Math.random() * caracteres.length)
-    );
+  if (perfil.exists() && perfil.data().grupoId) {
+    throw new Error('JA_POSSUI_FAMILIA');
   }
-
-  return codigo;
 }
 
 export async function criarGrupo(nomeGrupo, usuario) {
-  const codigoConvite = gerarCodigoConvite();
+  await garantirSemFamilia(usuario.uid);
+
+  const referenciaGrupo = doc(collection(db, 'grupos'));
+  const agora = new Date().toISOString();
 
   const grupo = {
     nome: nomeGrupo.trim(),
-    codigoConvite: codigoConvite,
     administradorUid: usuario.uid,
     membros: [usuario.uid],
-    criadoEm: new Date().toISOString(),
+    criadoEm: agora,
   };
 
-  const referencia = await addDoc(
-    collection(db, 'grupos'),
-    grupo
+  /*
+   * Grupo, registro do membro e vínculo no perfil
+   * são gravados juntos: ou tudo é salvo, ou nada.
+   * As regras do Firestore conferem as três partes.
+   */
+  const lote = writeBatch(db);
+
+  lote.set(referenciaGrupo, grupo);
+
+  lote.set(
+    doc(db, 'grupos', referenciaGrupo.id, 'membros', usuario.uid),
+    {
+      uid: usuario.uid,
+      nome: usuario.nome || 'Usuário',
+      papel: 'administrador',
+      status: 'ativo',
+      entrouEm: agora,
+    }
   );
 
-  console.log('Grupo criado:', referencia.id);
-  console.log('Código de convite:', codigoConvite);
+  lote.set(
+    doc(db, 'usuarios', usuario.uid),
+    { grupoId: referenciaGrupo.id },
+    { merge: true }
+  );
+
+  await lote.commit();
+
+  console.log('Grupo criado:', referenciaGrupo.id);
 
   return {
-    id: referencia.id,
+    id: referenciaGrupo.id,
     ...grupo,
-  };
-}
-
-export async function procurarGrupoPorCodigo(codigoConvite) {
-  const codigo = codigoConvite.trim().toUpperCase();
-
-  const consulta = query(
-    collection(db, 'grupos'),
-    where('codigoConvite', '==', codigo)
-  );
-
-  const resultado = await getDocs(consulta);
-
-  if (resultado.empty) {
-    return null;
-  }
-
-  const documento = resultado.docs[0];
-
-  return {
-    id: documento.id,
-    ...documento.data(),
-  };
-}
-
-export async function solicitarEntrada(grupoId, usuario) {
-  const solicitacao = {
-    grupoId: grupoId,
-    usuarioUid: usuario.uid,
-    usuarioNome: usuario.nome,
-    usuarioEmail: usuario.email,
-    status: 'pendente',
-    criadoEm: new Date().toISOString(),
-  };
-
-  const referencia = await addDoc(
-    collection(db, 'solicitacoes'),
-    solicitacao
-  );
-
-  console.log(
-    'Solicitação criada:',
-    referencia.id
-  );
-
-  return {
-    id: referencia.id,
-    ...solicitacao,
   };
 }
 
@@ -113,4 +83,57 @@ export async function buscarGrupoPorId(grupoId) {
     id: resultado.id,
     ...resultado.data(),
   };
+}
+
+/*
+ * Grupos criados antes do sistema de convites só possuem
+ * o array "membros". Cria o registro do próprio usuário
+ * na subcoleção para que ele apareça na lista.
+ */
+export async function garantirRegistroMembro(grupo, usuario) {
+  if (!grupo?.membros?.includes(usuario.uid)) {
+    return;
+  }
+
+  const referencia = doc(
+    db,
+    'grupos',
+    grupo.id,
+    'membros',
+    usuario.uid
+  );
+
+  const registro = await getDoc(referencia);
+
+  if (registro.exists()) {
+    return;
+  }
+
+  await setDoc(referencia, {
+    uid: usuario.uid,
+    nome: usuario.nome || 'Usuário',
+    papel:
+      grupo.administradorUid === usuario.uid
+        ? 'administrador'
+        : 'membro',
+    status: 'ativo',
+    entrouEm: new Date().toISOString(),
+  });
+
+  console.log('Registro de membro criado:', usuario.uid);
+}
+
+export function observarMembros(grupoId, callback, onErro) {
+  return onSnapshot(
+    collection(db, 'grupos', grupoId, 'membros'),
+    (consulta) => {
+      callback(
+        consulta.docs.map((documento) => ({
+          id: documento.id,
+          ...documento.data(),
+        }))
+      );
+    },
+    onErro
+  );
 }

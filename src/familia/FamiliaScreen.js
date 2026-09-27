@@ -1,56 +1,103 @@
 import { useState, useEffect } from 'react';
 
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   View,
   TouchableOpacity,
-  Modal,
-  Share,
 } from 'react-native';
 
-import * as Clipboard from 'expo-clipboard';
-
 import ListaMembros from './ListaMembros';
-import CodigoConvite from './CodigoConvite';
+import ConvidarMembro from './ConvidarMembro';
 import GrupoScreen from '../grupo/GrupoScreen';
 
-import { observarFamiliares } from '../dados/buscarFamiliares';
-import { buscarGrupoPorId } from '../dados/grupo';
+import {
+  buscarGrupoPorId,
+  garantirRegistroMembro,
+  observarMembros,
+} from '../dados/grupo';
+
+import { observarConvitesPendentesDoGrupo } from '../dados/convites';
 
 import { cores, fontes, raio } from '../theme/theme';
 
 export default function FamiliaScreen({
-  familiares,
-  setFamiliares,
   grupoId,
   usuario,
   onGrupoConcluido,
 }) {
   const [grupoInfo, setGrupoInfo] = useState(null);
+  const [membros, setMembros] = useState([]);
+  const [convitesPendentes, setConvitesPendentes] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
   const [mostrarConvite, setMostrarConvite] = useState(false);
-  const [codigoCopiado, setCodigoCopiado] = useState(false);
 
   useEffect(() => {
-    if (!grupoId) return;
+    if (!grupoId || !usuario?.uid) return;
 
-    const cancelar = observarFamiliares(grupoId, (dados) => {
-      setFamiliares(dados);
-    });
+    let ativo = true;
+    let cancelarMembros = () => {};
+    let cancelarConvites = () => {};
 
-    return () => cancelar();
-  }, [grupoId]);
+    function falhou(e) {
+      console.error('Erro ao carregar família:', e);
 
-  useEffect(() => {
-    async function carregarGrupo() {
-      const grupo = await buscarGrupoPorId(grupoId);
-      setGrupoInfo(grupo);
+      if (ativo) {
+        setErro('Não foi possível carregar sua família.');
+        setCarregando(false);
+      }
     }
 
-    if (grupoId) {
-      carregarGrupo();
+    async function carregar() {
+      try {
+        setCarregando(true);
+        setErro('');
+
+        const grupo = await buscarGrupoPorId(grupoId);
+
+        if (!ativo) return;
+
+        if (!grupo) {
+          setErro('Família não encontrada.');
+          setCarregando(false);
+          return;
+        }
+
+        setGrupoInfo(grupo);
+
+        await garantirRegistroMembro(grupo, usuario);
+
+        if (!ativo) return;
+
+        cancelarMembros = observarMembros(
+          grupoId,
+          (dados) => {
+            setMembros(dados);
+            setCarregando(false);
+          },
+          falhou
+        );
+
+        cancelarConvites = observarConvitesPendentesDoGrupo(
+          grupoId,
+          setConvitesPendentes,
+          falhou
+        );
+      } catch (e) {
+        falhou(e);
+      }
     }
-  }, [grupoId]);
+
+    carregar();
+
+    return () => {
+      ativo = false;
+      cancelarMembros();
+      cancelarConvites();
+    };
+  }, [grupoId, usuario?.uid]);
 
   if (!grupoId) {
     return (
@@ -61,45 +108,35 @@ export default function FamiliaScreen({
     );
   }
 
-  const souHost =
-    grupoInfo?.administradorUid === usuario?.uid;
-
-  const copiarCodigo = async () => {
-    if (!grupoInfo?.codigoConvite) {
-      return;
-    }
-
-    await Clipboard.setStringAsync(
-      grupoInfo.codigoConvite
+  if (carregando) {
+    return (
+      <View style={styles.centro}>
+        <ActivityIndicator size="large" color={cores.primaria} />
+        <Text style={styles.subtitle}>Carregando família...</Text>
+      </View>
     );
+  }
 
-    setCodigoCopiado(true);
+  if (erro) {
+    return (
+      <View style={styles.centro}>
+        <Text style={styles.erro}>{erro}</Text>
+      </View>
+    );
+  }
 
-    setTimeout(() => {
-      setCodigoCopiado(false);
-    }, 2500);
-  };
+  const meuRegistro = membros.find(
+    (membro) => membro.uid === usuario.uid
+  );
 
-  const compartilharConvite = async () => {
-    if (!grupoInfo?.codigoConvite) {
-      return;
-    }
-
-    try {
-      await Share.share({
-        message:
-          `Você foi convidado para participar da minha família no Conecta!\n\n` +
-          `Instale o aplicativo Conecta e entre no grupo usando este código:\n\n` +
-          `${grupoInfo.codigoConvite}\n\n` +
-          `Depois, aceite o compartilhamento da localização para que possamos acompanhar uns aos outros no mapa.`,
-      });
-    } catch (erro) {
-      console.error(
-        'Erro ao compartilhar convite:',
-        erro
-      );
-    }
-  };
+  const lista = [
+    ...membros,
+    ...convitesPendentes.map((convite) => ({
+      id: `convite_${convite.id}`,
+      nome: convite.paraEmail,
+      status: 'pendente',
+    })),
+  ];
 
   return (
     <View style={styles.container}>
@@ -107,101 +144,39 @@ export default function FamiliaScreen({
         Minha Família
       </Text>
 
-      <Text style={styles.subtitle}>
-        Pessoas que compartilham a localização com você
+      <Text style={styles.nomeFamilia}>
+        {grupoInfo?.nome}
       </Text>
 
-      {souHost && grupoInfo && (
-        <CodigoConvite
-          codigo={grupoInfo.codigoConvite}
-          nomeGrupo={grupoInfo.nome}
-        />
-      )}
+      <Text style={styles.subtitle}>
+        {membros.length === 1
+          ? '1 membro ativo'
+          : `${membros.length} membros ativos`}
+      </Text>
 
-      <ListaMembros membros={familiares} />
+      <ListaMembros
+        membros={lista}
+        uidAtual={usuario.uid}
+      />
 
       <TouchableOpacity
         style={styles.botaoConvidar}
-        onPress={() => {
-          setCodigoCopiado(false);
-          setMostrarConvite(true);
-        }}
+        onPress={() => setMostrarConvite(true)}
+        disabled={!meuRegistro}
       >
         <Text style={styles.botaoConvidarTexto}>
           + Convidar familiar
         </Text>
       </TouchableOpacity>
 
-      <Modal
-        visible={mostrarConvite}
-        transparent
-        animationType="fade"
-        onRequestClose={() =>
-          setMostrarConvite(false)
-        }
-      >
-        <View style={styles.modalFundo}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitulo}>
-              Convidar familiar
-            </Text>
-
-            <Text style={styles.modalTexto}>
-              Para participar da sua família, a pessoa
-              precisa instalar o Conecta e entrar no seu
-              grupo usando o código abaixo.
-            </Text>
-
-            <Text style={styles.modalTexto}>
-              Depois de entrar, ela poderá permitir o
-              compartilhamento da localização.
-            </Text>
-
-            <Text style={styles.modalLabel}>
-              Código do grupo
-            </Text>
-
-            <Text style={styles.modalCodigo}>
-              {grupoInfo?.codigoConvite}
-            </Text>
-
-            {codigoCopiado && (
-              <Text style={styles.codigoCopiado}>
-                ✓ Código copiado!
-              </Text>
-            )}
-
-            <TouchableOpacity
-              style={styles.botaoPrincipal}
-              onPress={copiarCodigo}
-            >
-              <Text style={styles.botaoPrincipalTexto}>
-                Copiar código
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.botaoCompartilhar}
-              onPress={compartilharConvite}
-            >
-              <Text style={styles.botaoCompartilharTexto}>
-                Compartilhar convite
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.botaoFechar}
-              onPress={() =>
-                setMostrarConvite(false)
-              }
-            >
-              <Text style={styles.botaoFecharTexto}>
-                Fechar
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {meuRegistro && (
+        <ConvidarMembro
+          visivel={mostrarConvite}
+          grupo={grupoInfo}
+          remetente={meuRegistro}
+          onFechar={() => setMostrarConvite(false)}
+        />
+      )}
     </View>
   );
 }
@@ -214,18 +189,40 @@ const styles = StyleSheet.create({
     backgroundColor: cores.fundo,
   },
 
+  centro: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    padding: 25,
+    backgroundColor: cores.fundo,
+  },
+
   title: {
     fontSize: 26,
     fontFamily: fontes.titulo,
     color: cores.texto,
-    marginBottom: 8,
+    marginBottom: 4,
+  },
+
+  nomeFamilia: {
+    fontSize: 18,
+    fontFamily: fontes.destaque,
+    color: cores.primaria,
+    marginBottom: 4,
   },
 
   subtitle: {
     width: '90%',
     textAlign: 'center',
     color: cores.textoSecundario,
-    marginBottom: 25,
+    marginBottom: 20,
+  },
+
+  erro: {
+    color: cores.erro,
+    textAlign: 'center',
+    fontSize: 15,
   },
 
   botaoConvidar: {
@@ -242,102 +239,5 @@ const styles = StyleSheet.create({
     color: cores.textoSobrePrimaria,
     fontSize: 16,
     fontFamily: fontes.destaque,
-  },
-
-  modalFundo: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-
-  modalContainer: {
-    width: '100%',
-    maxWidth: 420,
-    backgroundColor: cores.superficie,
-    borderRadius: 20,
-    padding: 25,
-    alignItems: 'center',
-  },
-
-  modalTitulo: {
-    fontSize: 24,
-    fontFamily: fontes.titulo,
-    color: cores.texto,
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-
-  modalTexto: {
-    width: '100%',
-    textAlign: 'center',
-    color: cores.textoSecundario,
-    fontSize: 15,
-    lineHeight: 21,
-    marginBottom: 12,
-  },
-
-  modalLabel: {
-    fontSize: 14,
-    color: cores.textoSecundario,
-    marginTop: 8,
-    marginBottom: 5,
-  },
-
-  modalCodigo: {
-    fontSize: 32,
-    fontFamily: fontes.titulo,
-    color: cores.texto,
-    letterSpacing: 4,
-    marginBottom: 8,
-  },
-
-  codigoCopiado: {
-    color: cores.primaria,
-    fontSize: 15,
-    fontFamily: fontes.destaque,
-    marginBottom: 12,
-  },
-
-  botaoPrincipal: {
-    width: '100%',
-    padding: 15,
-    borderRadius: raio.pilula,
-    backgroundColor: cores.primaria,
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 10,
-  },
-
-  botaoPrincipalTexto: {
-    color: cores.textoSobrePrimaria,
-    fontSize: 16,
-    fontFamily: fontes.destaque,
-  },
-
-  botaoCompartilhar: {
-    width: '100%',
-    padding: 15,
-    borderRadius: raio.botaoSecundario,
-    borderWidth: 1,
-    borderColor: cores.primaria,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-
-  botaoCompartilharTexto: {
-    color: cores.primaria,
-    fontSize: 16,
-    fontFamily: fontes.destaque,
-  },
-
-  botaoFechar: {
-    padding: 12,
-  },
-
-  botaoFecharTexto: {
-    color: cores.textoSecundario,
-    fontSize: 15,
   },
 });

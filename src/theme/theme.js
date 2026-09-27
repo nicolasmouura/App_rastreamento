@@ -31,6 +31,8 @@ export const cores = {
 
   offline: '#D64545',
 
+  pendente: '#D98E04',
+
   // Feedback
   erro: '#D64545',
 

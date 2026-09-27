@@ -1,7 +1,7 @@
 import { FlatList, StyleSheet } from 'react-native';
 import MembroCard from './MembroCard';
 
-export default function ListaMembros({ membros }) {
+export default function ListaMembros({ membros, uidAtual }) {
   return (
     <FlatList
       data={membros}
@@ -9,7 +9,9 @@ export default function ListaMembros({ membros }) {
       renderItem={({ item }) => (
         <MembroCard
           nome={item.nome}
-          status={item.online ? 'online' : 'offline'}
+          status={item.status}
+          administrador={item.papel === 'administrador'}
+          voce={item.uid === uidAtual}
         />
       )}
       style={styles.lista}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import * as Clipboard from 'expo-clipboard';
 
 import {
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -9,13 +9,9 @@ import {
   View,
 } from 'react-native';
 
-import {
-  criarGrupo,
-  procurarGrupoPorCodigo,
-  solicitarEntrada,
-} from '../dados/grupo';
-
-import { salvarGrupoNoUsuario } from '../dados/salvarUsuario';
+import { criarGrupo } from '../dados/grupo';
+import { mensagemDeErro } from '../dados/convites';
+import ConvitesRecebidos from '../familia/ConvitesRecebidos';
 import { cores, fontes, raio } from '../theme/theme';
 
 export default function GrupoScreen({
@@ -24,162 +20,13 @@ export default function GrupoScreen({
   onPular,
 }) {
   const [criando, setCriando] = useState(false);
-  const [entrando, setEntrando] = useState(false);
 
   const [nomeGrupo, setNomeGrupo] = useState('');
-  const [codigoConvite, setCodigoConvite] = useState('');
 
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
 
   const [grupoCriado, setGrupoCriado] = useState(null);
-  const [codigoCopiado, setCodigoCopiado] = useState(false);
-
-  // =====================================================
-  // ENTRAR COM CÓDIGO
-  // =====================================================
-
-  if (entrando) {
-    return (
-      <View style={styles.container}>
-
-        <Text style={styles.titulo}>
-          Entrar em grupo familiar
-        </Text>
-
-        <Text style={styles.subtitulo}>
-          Digite o código de convite recebido
-          de um administrador da família.
-        </Text>
-
-        <TextInput
-          style={styles.input}
-          placeholder="Ex: TSG9FW"
-          placeholderTextColor={cores.textoSecundario}
-          value={codigoConvite}
-          onChangeText={(texto) => {
-            setCodigoConvite(
-              texto.toUpperCase()
-            );
-            setErro('');
-          }}
-          autoCapitalize="characters"
-          maxLength={6}
-        />
-
-        {erro ? (
-          <Text style={styles.erro}>
-            {erro}
-          </Text>
-        ) : null}
-
-        <TouchableOpacity
-          style={styles.botao}
-          disabled={carregando}
-          onPress={async () => {
-
-            const codigo =
-              codigoConvite.trim().toUpperCase();
-
-            if (codigo.length !== 6) {
-              setErro(
-                'Digite um código de 6 caracteres.'
-              );
-              return;
-            }
-
-            try {
-              setErro('');
-              setCarregando(true);
-
-              const grupo =
-                await procurarGrupoPorCodigo(
-                  codigo
-                );
-
-              if (!grupo) {
-                setErro(
-                  'Código de convite inválido.'
-                );
-                return;
-              }
-
-              console.log(
-                'Grupo encontrado:',
-                grupo.id
-              );
-
-              console.log(
-                'Nome do grupo:',
-                grupo.nome
-              );
-
-              await solicitarEntrada(
-                grupo.id,
-                usuario
-              );
-
-              setErro('');
-
-              console.log(
-                'Solicitação enviada para o administrador.'
-              );
-
-              alert(
-                'Solicitação enviada! Aguarde o administrador aceitar sua entrada.'
-              );
-
-              setCodigoConvite('');
-              setEntrando(false);
-
-            } catch (e) {
-
-              console.error(
-                'Erro ao solicitar entrada:',
-                e
-              );
-
-              if (
-                e.message ===
-                'SOLICITACAO_JA_EXISTE'
-              ) {
-                setErro(
-                  'Você já solicitou entrada nesse grupo.'
-                );
-              } else {
-                setErro(
-                  'Não foi possível solicitar entrada.'
-                );
-              }
-
-            } finally {
-              setCarregando(false);
-            }
-          }}
-        >
-          <Text style={styles.botaoTexto}>
-            {carregando
-              ? 'Verificando...'
-              : 'Solicitar entrada'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.botaoSecundario}
-          onPress={() => {
-            setEntrando(false);
-            setCodigoConvite('');
-            setErro('');
-          }}
-        >
-          <Text style={styles.botaoSecundarioTexto}>
-            Voltar
-          </Text>
-        </TouchableOpacity>
-
-      </View>
-    );
-  }
 
   // =====================================================
   // GRUPO CRIADO
@@ -190,50 +37,17 @@ export default function GrupoScreen({
       <View style={styles.container}>
 
         <Text style={styles.titulo}>
-          Grupo criado
+          Família criada com sucesso.
         </Text>
 
         <Text style={styles.subtitulo}>
           {grupoCriado.nome}
         </Text>
 
-        <Text style={styles.label}>
-          Código de convite
-        </Text>
-
-        <Text style={styles.codigo}>
-          {grupoCriado.codigoConvite}
-        </Text>
-
-        <TouchableOpacity
-          style={styles.botaoCopiar}
-          onPress={async () => {
-            await Clipboard.setStringAsync(
-              grupoCriado.codigoConvite
-            );
-
-            setCodigoCopiado(true);
-
-            setTimeout(() => {
-              setCodigoCopiado(false);
-            }, 2500);
-          }}
-        >
-          <Text style={styles.botaoCopiarTexto}>
-            Copiar código
-          </Text>
-        </TouchableOpacity>
-
-        {codigoCopiado && (
-          <Text style={styles.codigoCopiado}>
-            ✓ Código copiado!
-          </Text>
-        )}
-
         <Text style={styles.instrucao}>
-          Compartilhe este código com sua família
-          para que eles possam solicitar entrada
-          no grupo.
+          Agora você pode convidar sua família pela
+          tela "Minha Família", usando o e-mail de
+          cada pessoa.
         </Text>
 
         <TouchableOpacity
@@ -260,7 +74,7 @@ export default function GrupoScreen({
       <View style={styles.container}>
 
         <Text style={styles.titulo}>
-          Criar grupo familiar
+          Criar família
         </Text>
 
         <Text style={styles.subtitulo}>
@@ -269,13 +83,14 @@ export default function GrupoScreen({
 
         <TextInput
           style={styles.input}
-          placeholder="Ex: Família Talys"
+          placeholder="Ex: Família Silva"
           placeholderTextColor={cores.textoSecundario}
           value={nomeGrupo}
           onChangeText={(texto) => {
             setNomeGrupo(texto);
             setErro('');
           }}
+          maxLength={60}
         />
 
         {erro ? (
@@ -285,13 +100,16 @@ export default function GrupoScreen({
         ) : null}
 
         <TouchableOpacity
-          style={styles.botao}
+          style={[
+            styles.botao,
+            carregando && styles.botaoDesabilitado,
+          ]}
           disabled={carregando}
           onPress={async () => {
 
             if (!nomeGrupo.trim()) {
               setErro(
-                'Digite um nome para o grupo.'
+                'Digite um nome para a família.'
               );
               return;
             }
@@ -306,15 +124,6 @@ export default function GrupoScreen({
                   usuario
                 );
 
-              await salvarGrupoNoUsuario(
-                usuario.uid,
-                grupo.id
-              );
-
-              console.log(
-                'Grupo vinculado ao usuário.'
-              );
-
               setGrupoCriado(grupo);
 
             } catch (e) {
@@ -325,7 +134,10 @@ export default function GrupoScreen({
               );
 
               setErro(
-                'Não foi possível criar o grupo.'
+                mensagemDeErro(
+                  e,
+                  'Não foi possível criar a família.'
+                )
               );
 
             } finally {
@@ -336,12 +148,13 @@ export default function GrupoScreen({
           <Text style={styles.botaoTexto}>
             {carregando
               ? 'Criando...'
-              : 'Criar grupo'}
+              : 'Criar família'}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.botaoSecundario}
+          disabled={carregando}
           onPress={() => {
             setCriando(false);
             setErro('');
@@ -361,15 +174,24 @@ export default function GrupoScreen({
   // =====================================================
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.container}
+    >
 
       <Text style={styles.titulo}>
         Grupo Familiar
       </Text>
 
       <Text style={styles.subtitulo}>
-        Você ainda não faz parte de um grupo familiar.
+        Você ainda não faz parte de uma família.
+        Crie a sua ou aceite um convite recebido.
       </Text>
+
+      <ConvitesRecebidos
+        usuario={usuario}
+        onAceito={onGrupoConcluido}
+      />
 
       <TouchableOpacity
         style={styles.botao}
@@ -379,19 +201,7 @@ export default function GrupoScreen({
         }}
       >
         <Text style={styles.botaoTexto}>
-          Criar grupo familiar
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.botaoSecundario}
-        onPress={() => {
-          setEntrando(true);
-          setErro('');
-        }}
-      >
-        <Text style={styles.botaoSecundarioTexto}>
-          Entrar com código de convite
+          Criar família
         </Text>
       </TouchableOpacity>
 
@@ -406,17 +216,23 @@ export default function GrupoScreen({
         </TouchableOpacity>
       )}
 
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
 
-  container: {
+  scroll: {
     flex: 1,
+    backgroundColor: cores.fundo,
+  },
+
+  container: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 25,
+    paddingTop: 70,
     backgroundColor: cores.fundo,
   },
 
@@ -456,6 +272,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
+  botaoDesabilitado: {
+    opacity: 0.7,
+  },
+
   botaoTexto: {
     color: cores.textoSobrePrimaria,
     fontSize: 16,
@@ -478,29 +298,6 @@ const styles = StyleSheet.create({
     fontFamily: fontes.destaque,
   },
 
-  botaoCopiar: {
-    width: '90%',
-    padding: 14,
-    borderRadius: raio.botaoSecundario,
-    borderWidth: 1,
-    borderColor: cores.primaria,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-
-  botaoCopiarTexto: {
-    color: cores.primaria,
-    fontSize: 16,
-    fontFamily: fontes.destaque,
-  },
-
-  codigoCopiado: {
-    color: cores.primaria,
-    fontSize: 15,
-    fontFamily: fontes.destaque,
-    marginBottom: 12,
-  },
-
   botaoPular: {
     padding: 12,
   },
@@ -514,20 +311,6 @@ const styles = StyleSheet.create({
     color: cores.erro,
     textAlign: 'center',
     marginBottom: 10,
-  },
-
-  label: {
-    fontSize: 14,
-    color: cores.textoSecundario,
-    marginBottom: 8,
-  },
-
-  codigo: {
-    fontSize: 32,
-    fontFamily: fontes.titulo,
-    color: cores.texto,
-    letterSpacing: 4,
-    marginBottom: 15,
   },
 
   instrucao: {

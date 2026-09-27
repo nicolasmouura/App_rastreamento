@@ -1,4 +1,4 @@
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 
 import { db } from '../config/firebase';
 
@@ -11,16 +11,4 @@ export async function salvarPerfilUsuario(usuario) {
   });
 
   console.log('Perfil salvo no Firebase:', usuario.uid);
-}
-
-export async function salvarGrupoNoUsuario(uid, grupoId) {
-  await updateDoc(doc(db, 'usuarios', uid), {
-    grupoId: grupoId,
-  });
-
-  console.log(
-    'Grupo salvo no perfil do usuário:',
-    uid,
-    grupoId
-  );
 }
