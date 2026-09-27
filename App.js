@@ -38,10 +38,6 @@ import PerfilScreen from './src/perfil/PerfilScreen';
 import ExplorarScreen from './src/explorar/ExplorarScreen';
 import ConquistaScreen from './src/conquista/ConquistaScreen';
 
-import {
-  familiares as familiaresIniciais,
-} from './src/dados/familiares';
-
 import AutenticacaoScreen from './src/autenticacao/AutenticacaoScreen';
 import GrupoScreen from './src/grupo/GrupoScreen';
 
@@ -64,7 +60,7 @@ export default function App() {
   const [pulouGrupo, setPulouGrupo] = useState(false);
   const [verificandoGrupo, setVerificandoGrupo] = useState(false);
   const [tela, setTela] = useState('menu');
-  const [familiares, setFamiliares] = useState(familiaresIniciais);
+  const [familiares, setFamiliares] = useState([]);
 
   // Ponto que está sendo registrado pela câmera
   const [pontoEmRegistro, setPontoEmRegistro] = useState(null);
@@ -392,7 +388,6 @@ export default function App() {
   if (tela === 'mapa') {
     conteudo = (
       <TelaMapa
-        familiares={familiares}
         usuario={perfil}
         grupoId={grupoId}
       />

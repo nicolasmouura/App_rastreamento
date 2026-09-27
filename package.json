@@ -19,7 +19,6 @@
     "expo-image-picker": "~57.0.18",
     "expo-local-authentication": "~57.0.2",
     "expo-location": "~57.0.16",
-    "expo-media-library": "~57.0.4",
     "expo-secure-store": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "expo-task-manager": "~57.0.19",
@@ -27,8 +26,7 @@
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-maps": "1.27.2",
-    "react-native-safe-area-context": "~5.7.0",
-    "react-native-webview": "13.16.1"
+    "react-native-safe-area-context": "~5.7.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

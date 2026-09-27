@@ -67,13 +67,9 @@
         }
       ],
       [
-        "expo-media-library",
+        "expo-image-picker",
         {
-          "photosPermission": "Permita que o aplicativo acesse suas fotos.",
-          "savePhotosPermission": "Permita que o aplicativo salve fotos na galeria.",
-          "granularPermissions": [
-            "photo"
-          ]
+          "photosPermission": "Permita que o aplicativo acesse suas fotos."
         }
       ],
       "expo-font",

@@ -1,5 +1,4 @@
 import * as TaskManager from 'expo-task-manager';
-import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
 import { doc, setDoc } from 'firebase/firestore';
 

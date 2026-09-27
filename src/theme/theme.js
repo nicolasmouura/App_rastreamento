@@ -56,18 +56,6 @@ export const raio = {
 
 };
 
-export const espaco = {
-
-  pequeno: 8,
-
-  medio: 16,
-
-  grande: 24,
-
-  extraGrande: 32,
-
-};
-
 export const sombra = {
 
   shadowColor: '#000',
