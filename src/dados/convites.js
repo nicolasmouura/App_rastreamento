@@ -12,7 +12,8 @@ import {
 } from 'firebase/firestore';
 
 import { auth, db } from '../config/firebase';
-import { garantirSemFamilia } from './grupo';
+import { buscarGrupoPorId, garantirSemFamilia } from './grupo';
+import { chaveDiretorio, normalizarNome } from './salvarUsuario';
 
 const EMAIL_VALIDO = /^[^@/\s]+@[^@/\s]+\.[^@/\s]+$/;
 
@@ -20,8 +21,10 @@ const MENSAGENS = {
   JA_POSSUI_FAMILIA: 'Você já pertence a uma família.',
   EMAIL_INVALIDO: 'Digite um e-mail válido.',
   CONVITE_PARA_SI_MESMO: 'Você não pode convidar a si mesmo.',
-  CONVITE_JA_PENDENTE: 'Já existe um convite pendente para este e-mail.',
-  JA_E_MEMBRO: 'Essa pessoa já faz parte da família.',
+  CAMPOS_OBRIGATORIOS: 'Preencha o nome completo e o e-mail cadastrado.',
+  USUARIO_NAO_ENCONTRADO: 'Usuário não encontrado. Confira o nome completo e o e-mail cadastrado.',
+  CONVITE_JA_PENDENTE: 'Já existe um convite pendente para este usuário.',
+  JA_E_MEMBRO: 'Este usuário já faz parte da família.',
   CONVITE_INDISPONIVEL: 'Este convite não está mais disponível.',
 };
 
@@ -50,8 +53,28 @@ function mapearConvites(consulta) {
   }));
 }
 
-export async function enviarConvite({ grupo, remetente, email }) {
+/*
+ * Nome completo + e-mail cadastrado → uid, pelo índice
+ * diretorioConvites (leitura exata). Qualquer divergência dá
+ * "não encontrado", sem dizer qual informação estava errada.
+ */
+export async function encontrarUsuarioConvidavel(nome, email) {
+  const chave = chaveDiretorio(nome, email);
+
+  if (!chave) return null;
+
+  const entrada = await getDoc(doc(db, 'diretorioConvites', chave));
+
+  return entrada.exists() ? entrada.data().uid : null;
+}
+
+export async function enviarConvite({ grupo, remetente, nome, email }) {
+  const paraNome = normalizarNome(nome);
   const paraEmail = normalizarEmail(email);
+
+  if (!paraNome || !paraEmail) {
+    throw new Error('CAMPOS_OBRIGATORIOS');
+  }
 
   if (!EMAIL_VALIDO.test(paraEmail)) {
     throw new Error('EMAIL_INVALIDO');
@@ -59,6 +82,19 @@ export async function enviarConvite({ grupo, remetente, email }) {
 
   if (paraEmail === emailAtual()) {
     throw new Error('CONVITE_PARA_SI_MESMO');
+  }
+
+  // O uid vem do índice, nunca da interface.
+  const paraUid = await encontrarUsuarioConvidavel(paraNome, paraEmail);
+
+  if (!paraUid) {
+    throw new Error('USUARIO_NAO_ENCONTRADO');
+  }
+
+  const grupoAtual = await buscarGrupoPorId(grupo.id);
+
+  if (grupoAtual?.membros?.includes(paraUid)) {
+    throw new Error('JA_E_MEMBRO');
   }
 
   const referencia = doc(
@@ -84,10 +120,12 @@ export async function enviarConvite({ grupo, remetente, email }) {
   // Um convite recusado pode ser reenviado (sobrescreve o anterior).
   await setDoc(referencia, {
     grupoId: grupo.id,
-    grupoNome: grupo.nome,
+    grupoNome: grupoAtual?.nome ?? grupo.nome,
     deUid: remetente.uid,
     deNome: remetente.nome,
     paraEmail,
+    paraNome,
+    paraUid,
     status: 'pendente',
     criadoEm: new Date().toISOString(),
   });

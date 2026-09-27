@@ -1,88 +1,25 @@
-import { useState } from 'react';
-import {
-  Image,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import { LIMITES_PERFIL, validarPerfil } from '../dados/salvarUsuario';
+import { mascararDocumento } from '../dados/salvarUsuario';
 import { cores, fontes, raio } from '../theme/theme';
 
-const CAMPOS = [
-  {
-    chave: 'nome',
-    label: 'Nome',
-    placeholder: 'Seu nome',
-    autoCapitalize: 'words',
-  },
-  {
-    chave: 'telefone',
-    label: 'Telefone',
-    placeholder: '(21) 98765-4321',
-    keyboardType: 'phone-pad',
-  },
-  {
-    chave: 'documento',
-    label: 'Documento',
-    placeholder: 'CPF ou RG',
-    autoCapitalize: 'characters',
-  },
-  {
-    chave: 'endereco',
-    label: 'Onde mora (opcional)',
-    placeholder: 'Ex: Engenheiro Paulo de Frontin - RJ',
-    autoCapitalize: 'words',
-  },
-];
+function Informacao({ icone, label, valor }) {
+  return (
+    <View style={styles.linha}>
+      <Feather name={icone} size={17} color={cores.primaria} />
 
-// Foto + dados pessoais editáveis do usuário ("Meu Perfil").
-export default function DadosUsuario({ perfil, foto, onAlterarFoto, onSalvar }) {
-  const [dados, setDados] = useState({
-    nome: perfil.nome,
-    telefone: perfil.telefone,
-    documento: perfil.documento,
-    endereco: perfil.endereco,
-  });
+      <View style={styles.linhaTextos}>
+        <Text style={styles.linhaLabel}>{label}</Text>
+        <Text style={styles.linhaValor}>{valor || 'Não informado'}</Text>
+      </View>
+    </View>
+  );
+}
 
-  const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState('');
-  const [sucesso, setSucesso] = useState('');
-
-  function alterarCampo(chave, valor) {
-    setDados((atuais) => ({ ...atuais, [chave]: valor }));
-    setErro('');
-    setSucesso('');
-  }
-
-  async function salvar() {
-    const mensagemErro = validarPerfil(dados);
-
-    if (mensagemErro) {
-      setErro(mensagemErro);
-      return;
-    }
-
-    try {
-      setErro('');
-      setSucesso('');
-      setSalvando(true);
-
-      const salvos = await onSalvar(dados);
-
-      setDados(salvos);
-      setSucesso('Dados atualizados com sucesso.');
-    } catch (e) {
-      console.error('Erro ao atualizar perfil:', e);
-      setErro('Não foi possível atualizar seus dados.\nTente novamente.');
-    } finally {
-      setSalvando(false);
-    }
-  }
-
+// Foto + dados pessoais do usuário ("Meu Perfil"). A edição fica em
+// Configurações → Editar informações.
+export default function DadosUsuario({ perfil, foto, onAlterarFoto }) {
   return (
     <View style={styles.container}>
 
@@ -104,43 +41,24 @@ export default function DadosUsuario({ perfil, foto, onAlterarFoto, onSalvar }) 
         </Text>
       </TouchableOpacity>
 
-      <View style={styles.formulario}>
-        <Text style={styles.label}>E-mail</Text>
-        <Text style={styles.email}>{perfil.email || '—'}</Text>
+      <Text style={styles.nome}>
+        {perfil.nome || 'Usuário'}
+      </Text>
 
-        {CAMPOS.map((campo) => (
-          <View key={campo.chave}>
-            <Text style={styles.label}>{campo.label}</Text>
-
-            <TextInput
-              style={styles.input}
-              value={dados[campo.chave]}
-              onChangeText={(valor) => alterarCampo(campo.chave, valor)}
-              placeholder={campo.placeholder}
-              placeholderTextColor={cores.textoSecundario}
-              keyboardType={campo.keyboardType}
-              autoCapitalize={campo.autoCapitalize}
-              autoCorrect={false}
-              maxLength={LIMITES_PERFIL[campo.chave]}
-              editable={!salvando}
-            />
-          </View>
-        ))}
-
-        {erro ? <Text style={styles.erro}>{erro}</Text> : null}
-
-        {sucesso ? <Text style={styles.sucesso}>✓ {sucesso}</Text> : null}
-
-        <TouchableOpacity
-          style={[styles.botao, salvando && styles.botaoDesabilitado]}
-          onPress={salvar}
-          disabled={salvando}
-        >
-          <Text style={styles.botaoTexto}>
-            {salvando ? 'Salvando...' : 'Salvar alterações'}
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.cartao}>
+        <Informacao icone="mail" label="E-mail" valor={perfil.email} />
+        <Informacao
+          icone="credit-card"
+          label="CPF"
+          valor={perfil.documento ? mascararDocumento(perfil.documento) : ''}
+        />
+        <Informacao icone="phone" label="Telefone" valor={perfil.telefone} />
+        <Informacao icone="home" label="Endereço" valor={perfil.endereco} />
       </View>
+
+      <Text style={styles.dica}>
+        Para alterar seus dados, vá em Configurações → Editar informações.
+      </Text>
 
     </View>
   );
@@ -180,64 +98,49 @@ const styles = StyleSheet.create({
     fontFamily: fontes.destaque,
   },
 
-  formulario: {
-    width: '100%',
-    marginTop: 22,
-  },
-
-  label: {
-    fontSize: 14,
-    fontFamily: fontes.destaque,
+  nome: {
+    fontSize: 22,
+    fontFamily: fontes.titulo,
     color: cores.texto,
-    marginBottom: 6,
-  },
-
-  email: {
-    fontSize: 16,
-    color: cores.textoSecundario,
+    marginTop: 16,
     marginBottom: 16,
-  },
-
-  input: {
-    width: '100%',
-    borderWidth: 1,
-    borderColor: cores.borda,
-    borderRadius: raio.botaoSecundario + 4,
-    padding: 14,
-    marginBottom: 16,
-    fontSize: 16,
-    backgroundColor: cores.superficie,
-    color: cores.texto,
-  },
-
-  erro: {
-    color: cores.erro,
     textAlign: 'center',
-    marginBottom: 12,
   },
 
-  sucesso: {
-    color: cores.online,
-    fontFamily: fontes.destaque,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-
-  botao: {
+  cartao: {
     width: '100%',
     padding: 16,
-    borderRadius: raio.pilula,
-    backgroundColor: cores.primaria,
+    gap: 14,
+    borderRadius: raio.card,
+    borderWidth: 1,
+    borderColor: cores.borda,
+    backgroundColor: cores.superficie,
+  },
+
+  linha: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
 
-  botaoDesabilitado: {
-    opacity: 0.7,
+  linhaTextos: {
+    flex: 1,
   },
 
-  botaoTexto: {
-    color: cores.textoSobrePrimaria,
-    fontSize: 16,
-    fontFamily: fontes.destaque,
+  linhaLabel: {
+    fontSize: 12,
+    color: cores.textoSecundario,
+  },
+
+  linhaValor: {
+    fontSize: 15,
+    color: cores.texto,
+  },
+
+  dica: {
+    fontSize: 12,
+    color: cores.textoSecundario,
+    textAlign: 'center',
+    marginTop: 10,
   },
 });

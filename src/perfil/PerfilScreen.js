@@ -335,7 +335,6 @@ export default function PerfilScreen({
                 onAlterarFoto={
                   escolherFoto
                 }
-                onSalvar={salvarPerfil}
               />
             ) : (
               <View
@@ -466,6 +465,8 @@ export default function PerfilScreen({
           >
             <Configuracoes
               usuario={usuario}
+              perfil={dadosPerfil}
+              onSalvarPerfil={salvarPerfil}
               onSair={
                 sairDoAplicativo
               }

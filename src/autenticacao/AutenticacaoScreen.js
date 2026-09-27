@@ -19,7 +19,10 @@ import {
 } from 'firebase/auth';
 
 import { auth } from '../config/firebase';
-import { salvarPerfilUsuario } from '../dados/salvarUsuario';
+import {
+  salvarPerfilUsuario,
+  validarCadastro,
+} from '../dados/salvarUsuario';
 import {
   deveOferecerBiometria,
   PREFERENCIA,
@@ -69,6 +72,12 @@ export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) 
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
 
+  // Somente no cadastro
+  const [cpf, setCpf] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [endereco, setEndereco] = useState('');
+  const [confirmacao, setConfirmacao] = useState('');
+
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
 
@@ -78,8 +87,18 @@ export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) 
 
     try {
       if (tela === 'cadastro') {
-        if (!nome.trim()) {
-          setErro('Digite seu nome.');
+        const erroCadastro = validarCadastro({
+          nome,
+          email,
+          cpf,
+          telefone,
+          endereco,
+          senha,
+          confirmacao,
+        });
+
+        if (erroCadastro) {
+          setErro(erroCadastro);
           setCarregando(false);
           return;
         }
@@ -96,7 +115,13 @@ export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) 
           email: resultado.user.email,
         };
 
-        await salvarPerfilUsuario(usuario);
+        // A senha fica só no Firebase Authentication.
+        await salvarPerfilUsuario({
+          ...usuario,
+          cpf,
+          telefone,
+          endereco,
+        });
 
         console.log('Conta criada:', usuario.uid);
 
@@ -274,16 +299,17 @@ export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) 
         {cadastro && (
           <>
             <Text style={styles.label}>
-              Nome
+              Nome completo
             </Text>
 
             <TextInput
               style={styles.input}
-              placeholder="Seu nome"
+              placeholder="Seu nome completo"
               placeholderTextColor={cores.textoSecundario}
               value={nome}
               onChangeText={setNome}
               autoCapitalize="words"
+              maxLength={60}
             />
           </>
         )}
@@ -307,6 +333,52 @@ export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) 
           returnKeyType="next"
         />
 
+        {cadastro && (
+          <>
+            <Text style={styles.label}>
+              CPF
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="000.000.000-00"
+              placeholderTextColor={cores.textoSecundario}
+              value={cpf}
+              onChangeText={setCpf}
+              keyboardType="number-pad"
+              maxLength={14}
+            />
+
+            <Text style={styles.label}>
+              Telefone
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="(21) 98765-4321"
+              placeholderTextColor={cores.textoSecundario}
+              value={telefone}
+              onChangeText={setTelefone}
+              keyboardType="phone-pad"
+              maxLength={20}
+            />
+
+            <Text style={styles.label}>
+              Endereço
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Rua, número, bairro, cidade - UF"
+              placeholderTextColor={cores.textoSecundario}
+              value={endereco}
+              onChangeText={setEndereco}
+              autoCapitalize="words"
+              maxLength={120}
+            />
+          </>
+        )}
+
         {!cadastro && (
           <VerificaBiometria
             email={email}
@@ -329,6 +401,23 @@ export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) 
           onChangeText={setSenha}
           secureTextEntry
         />
+
+        {cadastro && (
+          <>
+            <Text style={styles.label}>
+              Confirmar senha
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Digite a senha novamente"
+              placeholderTextColor={cores.textoSecundario}
+              value={confirmacao}
+              onChangeText={setConfirmacao}
+              secureTextEntry
+            />
+          </>
+        )}
 
         {erro ? (
           <Text style={styles.erro}>

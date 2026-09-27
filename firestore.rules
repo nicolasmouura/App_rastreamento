@@ -73,6 +73,19 @@ service cloud.firestore {
         && textoOpcional(dados, 'atualizadoEm', 40);
     }
 
+    // CPF é guardado no campo "documento" no formato 000.000.000-00.
+    function cpfFormatado(valor) {
+      return valor is string && valor.matches('^[0-9]{3}[.][0-9]{3}[.][0-9]{3}-[0-9]{2}$');
+    }
+
+    // CPF imutável: depois de preenchido não muda nem é apagado.
+    // Conta antiga sem CPF pode informá-lo uma única vez.
+    function documentoImutavel() {
+      let anterior = resource.data.get('documento', '');
+      let novo = request.resource.data.get('documento', '');
+      return novo == anterior || (anterior == '' && cpfFormatado(novo));
+    }
+
     // O perfil pertence a uma família da qual o usuário atual é membro.
     function perfilDaMinhaFamilia(perfil) {
       let grupoId = perfil.get('grupoId', null);
@@ -168,10 +181,32 @@ service cloud.firestore {
         && request.resource.data.encerradoEm == request.time;
     }
 
+    // Mesma normalização do app (normalizarNome em salvarUsuario.js).
+    function nomeNormalizado(nome) {
+      return nome.lower().replace('[ \t]+', ' ').trim();
+    }
+
+    function caminhoDiretorio(chave) {
+      return /databases/$(database)/documents/diretorioConvites/$(chave);
+    }
+
+    // O convidado (paraUid) é o uid do índice para ESSE nome completo
+    // + e-mail, e ainda não é membro. O app não escolhe o uid.
+    function convidadoValido(dados) {
+      return dados.paraNome is string
+        && dados.paraNome.size() > 0
+        && dados.paraNome == nomeNormalizado(dados.paraNome)
+        && dados.paraUid is string
+        && dados.paraUid != meuUid()
+        && dados.paraUid == get(caminhoDiretorio(dados.paraNome + '|' + dados.paraEmail)).data.uid
+        && !(dados.paraUid in get(caminhoGrupo(dados.grupoId)).data.membros);
+    }
+
     function conviteNovoValido(conviteId) {
       let dados = request.resource.data;
       return autenticado()
-        && dados.keys().hasOnly(['grupoId', 'grupoNome', 'deUid', 'deNome', 'paraEmail', 'status', 'criadoEm'])
+        && dados.keys().hasOnly(['grupoId', 'grupoNome', 'deUid', 'deNome', 'paraEmail', 'paraNome', 'paraUid', 'status', 'criadoEm'])
+        && convidadoValido(dados)
         && dados.deUid == meuUid()
         && ehMembro(dados.grupoId)
         && dados.paraEmail is string
@@ -214,14 +249,16 @@ service cloud.firestore {
         && request.resource.data.get('uid', userId) == userId
         && (!('email' in request.resource.data) || request.resource.data.email.lower() == meuEmail())
         && dadosPessoaisValidos(request.resource.data)
+        && (!('documento' in request.resource.data) || cpfFormatado(request.resource.data.documento))
         && vinculoDeFamiliaValido(null);
 
-      // uid, email e criadoEm não podem mudar. grupoId só muda
-      // pelo fluxo de família/convite (vinculoDeFamiliaValido).
+      // uid, email e criadoEm não podem mudar; CPF (documento) não muda
+      // depois de preenchido. grupoId só muda pelo fluxo de família/convite.
       allow update: if autenticado()
         && meuUid() == userId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'telefone', 'documento', 'endereco', 'atualizadoEm', 'grupoId'])
         && dadosPessoaisValidos(request.resource.data)
+        && documentoImutavel()
         && vinculoDeFamiliaValido(resource.data.get('grupoId', null));
 
       allow delete: if false;
@@ -367,6 +404,26 @@ service cloud.firestore {
       allow update: if encerramentoSOSValido();
 
       allow delete: if false;
+    }
+
+    // ---------------------------------------------------
+    // ÍNDICE PARA CONVITES: {nome normalizado|e-mail} → { uid }.
+    // Leitura só por chave exata (quem sabe nome E e-mail); listar
+    // é proibido. Cada usuário só cria/apaga a própria entrada,
+    // com o nome do próprio perfil e o e-mail do próprio login.
+    // ---------------------------------------------------
+
+    match /diretorioConvites/{chave} {
+      allow get: if autenticado();
+      allow list: if false;
+
+      allow create: if autenticado()
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == meuUid()
+        && chave == nomeNormalizado(getAfter(caminhoUsuario(meuUid())).data.nome) + '|' + meuEmail();
+
+      allow update: if false;
+      allow delete: if autenticado() && resource.data.uid == meuUid();
     }
 
     // A coleção antiga "solicitacoes" (entrada por código)

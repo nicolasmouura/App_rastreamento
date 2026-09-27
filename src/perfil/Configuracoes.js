@@ -19,9 +19,15 @@ import {
   PREFERENCIA,
   salvarPreferencia,
 } from '../dados/biometria';
+import EditarInformacoes from './EditarInformacoes';
 import { cores, fontes } from '../theme/theme';
 
 const ITENS = [
+  {
+    chave: 'editar',
+    label: 'Editar informações',
+    icone: 'edit-2',
+  },
   {
     chave: 'notificacoes',
     label: 'Notificações',
@@ -85,7 +91,15 @@ const CONFIGURACOES_PADRAO = {
   localizacaoAtualizada: true,
 };
 
-export default function Configuracoes({ usuario, onSair }) {
+export default function Configuracoes({
+  usuario,
+  perfil,
+  onSalvarPerfil,
+  onSair,
+}) {
+  const [editarAberto, setEditarAberto] =
+    useState(false);
+
   const [notificacoesAbertas, setNotificacoesAbertas] =
     useState(false);
 
@@ -161,6 +175,19 @@ export default function Configuracoes({ usuario, onSair }) {
   }
 
   function tocarOpcao(chave) {
+    if (chave === 'editar') {
+      if (!perfil) {
+        Alert.alert(
+          'Aguarde',
+          'Seus dados ainda estão carregando.'
+        );
+        return;
+      }
+
+      setEditarAberto(true);
+      return;
+    }
+
     if (chave === 'notificacoes') {
       setNotificacoesAbertas(true);
       return;
@@ -243,6 +270,16 @@ export default function Configuracoes({ usuario, onSair }) {
           onPress: onSair,
         },
       ]
+    );
+  }
+
+  if (editarAberto && perfil) {
+    return (
+      <EditarInformacoes
+        perfil={perfil}
+        onSalvar={onSalvarPerfil}
+        onVoltar={() => setEditarAberto(false)}
+      />
     );
   }
 

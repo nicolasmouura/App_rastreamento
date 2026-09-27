@@ -19,12 +19,14 @@ export default function ConvidarMembro({
   remetente,
   onFechar,
 }) {
+  const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
   const [enviando, setEnviando] = useState(false);
 
   function fechar() {
+    setNome('');
     setEmail('');
     setErro('');
     setSucesso('');
@@ -32,8 +34,8 @@ export default function ConvidarMembro({
   }
 
   async function enviar() {
-    if (!email.trim()) {
-      setErro('Digite o e-mail da pessoa.');
+    if (!nome.trim() || !email.trim()) {
+      setErro('Preencha o nome completo e o e-mail cadastrado.');
       return;
     }
 
@@ -42,12 +44,13 @@ export default function ConvidarMembro({
       setSucesso('');
       setEnviando(true);
 
-      await enviarConvite({ grupo, remetente, email });
+      await enviarConvite({ grupo, remetente, nome, email });
 
+      setNome('');
       setEmail('');
       setSucesso('Convite enviado com sucesso.');
     } catch (e) {
-      console.error('Erro ao enviar convite:', e);
+      console.log('Convite não enviado:', e.code || e.message);
       setErro(mensagemDeErro(e, 'Não foi possível enviar o convite.'));
     } finally {
       setEnviando(false);
@@ -66,9 +69,29 @@ export default function ConvidarMembro({
           <Text style={styles.titulo}>Convidar familiar</Text>
 
           <Text style={styles.texto}>
-            Digite o e-mail que a pessoa usa para entrar no Conecta.
-            Ela verá o convite ao abrir o aplicativo.
+            Informe o nome completo e o e-mail exatamente como a pessoa
+            cadastrou no Conecta. Ela verá o convite ao abrir o aplicativo.
           </Text>
+
+          <Text style={styles.label}>Nome completo</Text>
+
+          <TextInput
+            style={styles.input}
+            placeholder="Nome completo cadastrado"
+            placeholderTextColor={cores.textoSecundario}
+            value={nome}
+            onChangeText={(texto) => {
+              setNome(texto);
+              setErro('');
+              setSucesso('');
+            }}
+            autoCapitalize="words"
+            autoCorrect={false}
+            maxLength={60}
+            editable={!enviando}
+          />
+
+          <Text style={styles.label}>E-mail cadastrado</Text>
 
           <TextInput
             style={styles.input}
@@ -147,6 +170,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
     marginBottom: 18,
+  },
+
+  label: {
+    alignSelf: 'flex-start',
+    fontSize: 14,
+    fontFamily: fontes.destaque,
+    color: cores.texto,
+    marginBottom: 6,
   },
 
   input: {

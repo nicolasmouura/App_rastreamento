@@ -39,6 +39,7 @@ import SOSScreen from './src/sos/SOSScreen';
 
 import AutenticacaoScreen from './src/autenticacao/AutenticacaoScreen';
 import { decidirAcessoRestaurado } from './src/dados/biometria';
+import { garantirEntradaDiretorio } from './src/dados/salvarUsuario';
 import GrupoScreen from './src/grupo/GrupoScreen';
 import { useCompartilharLocalizacao } from './src/mapa/compartilharLocalizacao';
 
@@ -97,6 +98,14 @@ export default function App() {
             nome: dadosUsuario.nome,
             email: dadosUsuario.email,
           });
+
+          // Contas antigas: entrada no índice de convites (Etapa 9).
+          garantirEntradaDiretorio(usuario.uid).catch((erro) =>
+            console.log(
+              'Índice de convites não atualizado:',
+              erro.code || erro.message
+            )
+          );
 
           if (dadosUsuario.grupoId) {
             console.log(
