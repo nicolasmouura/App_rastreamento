@@ -33,6 +33,7 @@ import TelaMapa from './src/mapa/TelaMapa';
 import FamiliaScreen from './src/familia/FamiliaScreen';
 import PerfilScreen from './src/perfil/PerfilScreen';
 import HistoricoScreen from './src/historico/HistoricoScreen';
+import SOSScreen from './src/sos/SOSScreen';
 
 import AutenticacaoScreen from './src/autenticacao/AutenticacaoScreen';
 import GrupoScreen from './src/grupo/GrupoScreen';
@@ -321,6 +322,13 @@ export default function App() {
         }
       />
     );
+  } else if (tela === 'sos') {
+    conteudo = (
+      <SOSScreen
+        usuario={perfil}
+        grupoId={temGrupo ? grupoId : null}
+      />
+    );
   } else if (tela === 'historico') {
     conteudo = (
       <HistoricoScreen
@@ -334,6 +342,8 @@ export default function App() {
         onSelect={setTela}
         nome={perfil?.nome}
         localizacao={localizacao}
+        grupoId={temGrupo ? grupoId : null}
+        uidAtual={perfil?.uid}
       />
     );
   }

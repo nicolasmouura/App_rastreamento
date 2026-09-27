@@ -10,6 +10,7 @@ import { Feather } from '@expo/vector-icons';
 import MapView, { Marker } from 'react-native-maps';
 
 import { descreverLocalizacao } from '../src/mapa/compartilharLocalizacao';
+import AvisoSOS from '../src/sos/AvisoSOS';
 
 import {
   cores,
@@ -45,7 +46,13 @@ const OPCOES = [
   },
 ];
 
-export default function Menu({ onSelect, nome, localizacao: estadoLocalizacao }) {
+export default function Menu({
+  onSelect,
+  nome,
+  localizacao: estadoLocalizacao,
+  grupoId,
+  uidAtual,
+}) {
   // Estado vindo de useCompartilharLocalizacao (App.js)
   const localizacao = estadoLocalizacao.coordenadas;
   const descricao = descreverLocalizacao(estadoLocalizacao);
@@ -80,6 +87,12 @@ export default function Menu({ onSelect, nome, localizacao: estadoLocalizacao })
             />
           </View>
         </View>
+
+        <AvisoSOS
+          grupoId={grupoId}
+          uidAtual={uidAtual}
+          onAbrir={() => onSelect('sos')}
+        />
 
         <TouchableOpacity
           style={styles.cardLocalizacao}
@@ -234,6 +247,37 @@ export default function Menu({ onSelect, nome, localizacao: estadoLocalizacao })
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* No fim da lista, separado dos atalhos do dia a dia. */}
+        <TouchableOpacity
+          style={styles.cardSOS}
+          onPress={() => onSelect('sos')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.iconeSOS}>
+            <Feather
+              name="alert-triangle"
+              size={23}
+              color={cores.erro}
+            />
+          </View>
+
+          <View style={styles.cardInfo}>
+            <Text style={styles.cardLabelSOS}>
+              SOS — Emergência
+            </Text>
+
+            <Text style={styles.cardDescricao}>
+              Avise sua família em caso de emergência
+            </Text>
+          </View>
+
+          <Feather
+            name="chevron-right"
+            size={18}
+            color={cores.erro}
+          />
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -460,6 +504,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: fontes.destaque,
     color: cores.texto,
+    marginBottom: 3,
+  },
+
+  cardSOS: {
+    minHeight: 76,
+    width: '100%',
+    borderRadius: raio.card,
+    backgroundColor: cores.superficie,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 24,
+    borderWidth: 1.5,
+    borderColor: cores.erro,
+  },
+
+  iconeSOS: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#FDECEC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 13,
+  },
+
+  cardLabelSOS: {
+    fontSize: 15,
+    fontFamily: fontes.destaque,
+    color: cores.erro,
     marginBottom: 3,
   },
 

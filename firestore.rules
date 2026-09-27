@@ -135,6 +135,39 @@ service cloud.firestore {
         && dados.registradoEm == request.time;
     }
 
+    // Novo alerta SOS: do próprio usuário, na família do perfil,
+    // com o nome do perfil, horário do servidor e coordenadas
+    // válidas (as duas juntas) ou ausentes.
+    function sosNovoValido() {
+      let dados = request.resource.data;
+      let perfil = get(caminhoUsuario(meuUid())).data;
+      return autenticado()
+        && dados.keys().hasAll(['uid', 'grupoId', 'nome', 'criadoEm', 'status'])
+        && dados.keys().hasOnly(['uid', 'grupoId', 'nome', 'latitude', 'longitude', 'criadoEm', 'status'])
+        && dados.uid == meuUid()
+        && dados.grupoId == perfil.get('grupoId', null)
+        && ehMembro(dados.grupoId)
+        && dados.nome == perfil.get('nome', null)
+        && dados.status == 'ativo'
+        && dados.criadoEm == request.time
+        && (('latitude' in dados) == ('longitude' in dados))
+        && (!('latitude' in dados) || (
+          dados.latitude is number && dados.latitude >= -90 && dados.latitude <= 90
+          && dados.longitude is number && dados.longitude >= -180 && dados.longitude <= 180
+        ));
+    }
+
+    // Encerrar: só o autor, só de "ativo" para "encerrado",
+    // mudando apenas status e encerradoEm (horário do servidor).
+    function encerramentoSOSValido() {
+      return autenticado()
+        && resource.data.uid == meuUid()
+        && resource.data.status == 'ativo'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'encerradoEm'])
+        && request.resource.data.status == 'encerrado'
+        && request.resource.data.encerradoEm == request.time;
+    }
+
     function conviteNovoValido(conviteId) {
       let dados = request.resource.data;
       return autenticado()
@@ -319,6 +352,21 @@ service cloud.firestore {
       allow create: if pontoHistoricoValido(userId);
 
       allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------
+    // ALERTAS SOS: membros da família do alerta leem;
+    // só o autor cria e encerra; ninguém apaga.
+    // ---------------------------------------------------
+
+    match /alertasSOS/{alertaId} {
+      allow read: if ehMembro(resource.data.grupoId);
+
+      allow create: if sosNovoValido();
+
+      allow update: if encerramentoSOSValido();
+
+      allow delete: if false;
     }
 
     // A coleção antiga "solicitacoes" (entrada por código)
