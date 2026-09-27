@@ -32,10 +32,10 @@ const OPCOES = [
     icone: 'map-pin',
   },
   {
-    chave: 'explorar',
-    label: 'Explorar',
-    descricao: 'Descubra lugares e conquiste troféus',
-    icone: 'award',
+    chave: 'historico',
+    label: 'Histórico',
+    descricao: 'Veja por onde sua família passou',
+    icone: 'clock',
   },
   {
     chave: 'perfil',

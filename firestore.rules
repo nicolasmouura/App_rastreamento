@@ -110,6 +110,31 @@ service cloud.firestore {
         && (!('online' in dados) || dados.online is bool);
     }
 
+    // Família atual do dono do histórico (lida de usuarios/{uid}).
+    function grupoDoUsuario(uid) {
+      return get(caminhoUsuario(uid)).data.get('grupoId', null);
+    }
+
+    // Ponto de histórico (historicoLocalizacoes/{uid}/pontos/{id}).
+    // Mesmas garantias da localização atual: o ponto é do usuário
+    // autenticado, da família do perfil, com coordenadas válidas
+    // e horário do servidor.
+    function pontoHistoricoValido(userId) {
+      let dados = request.resource.data;
+      let perfil = get(caminhoUsuario(meuUid())).data;
+      return autenticado()
+        && meuUid() == userId
+        && dados.keys().hasAll(['uid', 'grupoId', 'latitude', 'longitude', 'registradoEm'])
+        && dados.keys().hasOnly(['uid', 'grupoId', 'latitude', 'longitude', 'precisao', 'registradoEm'])
+        && dados.uid == meuUid()
+        && dados.grupoId == perfil.get('grupoId', null)
+        && ehMembro(dados.grupoId)
+        && dados.latitude is number && dados.latitude >= -90 && dados.latitude <= 90
+        && dados.longitude is number && dados.longitude >= -180 && dados.longitude <= 180
+        && (!('precisao' in dados) || (dados.precisao is number && dados.precisao >= 0))
+        && dados.registradoEm == request.time;
+    }
+
     function conviteNovoValido(conviteId) {
       let dados = request.resource.data;
       return autenticado()
@@ -277,6 +302,23 @@ service cloud.firestore {
       allow create, update: if localizacaoValida(userId);
 
       allow delete: if autenticado() && meuUid() == userId;
+    }
+
+    // ---------------------------------------------------
+    // HISTÓRICO DE LOCALIZAÇÕES: o dono e os membros da
+    // família atual do dono leem; só o dono cria; pontos
+    // nunca são alterados nem apagados pelo app.
+    // (Hoje não existe "sair da família". Quando existir,
+    // revisar a leitura para considerar o grupoId de cada ponto.)
+    // ---------------------------------------------------
+
+    match /historicoLocalizacoes/{userId}/pontos/{pontoId} {
+      allow read: if autenticado()
+        && (meuUid() == userId || ehMembro(grupoDoUsuario(userId)));
+
+      allow create: if pontoHistoricoValido(userId);
+
+      allow update, delete: if false;
     }
 
     // A coleção antiga "solicitacoes" (entrada por código)

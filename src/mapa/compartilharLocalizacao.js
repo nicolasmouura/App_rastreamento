@@ -7,6 +7,10 @@ import {
   distanciaEmMetros,
   salvarLocalizacao,
 } from '../dados/buscarFamiliares';
+import {
+  deveRegistrarHistorico,
+  registrarPontoHistorico,
+} from '../dados/historico';
 
 // Precisão "Balanced" (Wi-Fi/rede, ~100 m) gasta bem menos bateria que o GPS puro.
 // timeInterval vale no Android; o envio ao Firebase é filtrado em deveEnviarLocalizacao.
@@ -71,6 +75,7 @@ export function useCompartilharLocalizacao(usuario, grupoId) {
     let ativo = true;
     let assinatura = null;
     let ultimoEnvio = null;
+    let ultimoPontoHistorico = null;
     let ultimaTela = null;
     let enviando = false;
 
@@ -117,6 +122,18 @@ export function useCompartilharLocalizacao(usuario, grupoId) {
             atualizadoEm: agora,
             erroEnvio: false,
           }));
+        }
+
+        // Histórico: aproveita o mesmo envio (sem outro watcher/GPS).
+        // Uma falha aqui nunca afeta a localização atual.
+        if (deveRegistrarHistorico(ultimoPontoHistorico, coords, agora)) {
+          try {
+            await registrarPontoHistorico({ uid, grupoId, coordenadas: coords });
+
+            ultimoPontoHistorico = { latitude: coords.latitude, longitude: coords.longitude, em: agora };
+          } catch (erroHistorico) {
+            console.error('Erro ao registrar histórico:', erroHistorico);
+          }
         }
       } catch (erro) {
         console.error('Erro ao enviar localização:', erro);

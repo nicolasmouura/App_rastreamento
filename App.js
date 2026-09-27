@@ -5,7 +5,6 @@ import {
 } from 'react-native-safe-area-context';
 
 import {
-  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -25,18 +24,15 @@ import {
   doc,
   getDoc,
   getDocs,
-  setDoc,
 } from 'firebase/firestore';
 
 import { db } from './src/config/firebase';
 
 import Menu from './Components/Menu';
 import TelaMapa from './src/mapa/TelaMapa';
-import CameraScreen from './src/camera/CameraScreen';
 import FamiliaScreen from './src/familia/FamiliaScreen';
 import PerfilScreen from './src/perfil/PerfilScreen';
-import ExplorarScreen from './src/explorar/ExplorarScreen';
-import ConquistaScreen from './src/conquista/ConquistaScreen';
+import HistoricoScreen from './src/historico/HistoricoScreen';
 
 import AutenticacaoScreen from './src/autenticacao/AutenticacaoScreen';
 import GrupoScreen from './src/grupo/GrupoScreen';
@@ -62,14 +58,8 @@ export default function App() {
   const [verificandoGrupo, setVerificandoGrupo] = useState(false);
   const [tela, setTela] = useState('menu');
 
-  // Ponto que está sendo registrado pela câmera
-  const [pontoEmRegistro, setPontoEmRegistro] = useState(null);
-
-  // Visitas/conquistas do usuário
+  // Conquistas já registradas do usuário (exibidas no Perfil)
   const [visitasExplorar, setVisitasExplorar] = useState([]);
-
-  // Visita que acabou de gerar uma conquista
-  const [visitaConquistada, setVisitaConquistada] = useState(null);
 
   useEffect(() => {
     async function verificarGrupo() {
@@ -206,123 +196,13 @@ export default function App() {
     setTela('menu');
   };
 
-  function abrirRegistroDeVisita(ponto) {
-    console.log(
-      'BOTÃO REGISTRAR CLICADO'
-    );
-
-    console.log(
-      'Ponto:',
-      ponto
-    );
-
-    setPontoEmRegistro(ponto);
-    setTela('camera');
-  }
-
-  function cancelarRegistroDeVisita() {
-    console.log(
-      'Registro de visita cancelado.'
-    );
-
-    setPontoEmRegistro(null);
-    setTela('explorar');
-  }
-
-  async function concluirRegistroDeVisita(
-    fotoUri
-  ) {
-    if (!pontoEmRegistro || !usuario) {
-      return;
-    }
-
-    const visita = {
-      pontoId: pontoEmRegistro.id,
-      nome: pontoEmRegistro.nome,
-      categoria: pontoEmRegistro.categoria,
-      fotoUri,
-      registradaEm:
-        new Date().toISOString(),
-    };
-
-    try {
-      /*
-       * Cada ponto possui um documento próprio.
-       *
-       * Isso impede que o mesmo usuário
-       * registre o mesmo ponto várias vezes.
-       */
-      const referenciaConquista = doc(
-        db,
-        'usuarios',
-        usuario.uid,
-        'conquistas',
-        pontoEmRegistro.id
-      );
-
-      await setDoc(
-        referenciaConquista,
-        visita
-      );
-
-      console.log(
-        'Conquista salva no Firebase:',
-        visita
-      );
-
-      setVisitasExplorar(
-        (visitasAtuais) => {
-          const jaVisitado =
-            visitasAtuais.some(
-              (visitaExistente) =>
-                visitaExistente.pontoId ===
-                pontoEmRegistro.id
-            );
-
-          if (jaVisitado) {
-            return visitasAtuais;
-          }
-
-          return [
-            ...visitasAtuais,
-            {
-              id: pontoEmRegistro.id,
-              ...visita,
-            },
-          ];
-        }
-      );
-
-      // Guarda a visita para mostrar a tela de conquista
-      setVisitaConquistada(visita);
-
-      // Limpa o ponto que estava sendo registrado
-      setPontoEmRegistro(null);
-
-      // Abre a tela de troféu
-      setTela('conquista');
-    } catch (erro) {
-      console.error(
-        'Erro ao salvar conquista:',
-        erro
-      );
-
-      Alert.alert(
-        'Não foi possível salvar',
-        'A visita não pôde ser registrada. Verifique sua conexão e tente novamente.'
-      );
-    }
-  }
-
   function sairDoAplicativo() {
     setUsuario(null);
     setPerfil(null);
     setGrupoId(null);
     setTemGrupo(false);
     setPulouGrupo(false);
-    setPontoEmRegistro(null);
     setVisitasExplorar([]);
-    setVisitaConquistada(null);
     setTela('menu');
   }
 
@@ -411,17 +291,6 @@ export default function App() {
         localizacao={localizacao}
       />
     );
-  } else if (tela === 'camera') {
-    conteudo = (
-      <CameraScreen
-        onPhotoTaken={
-          concluirRegistroDeVisita
-        }
-        onCancel={
-          cancelarRegistroDeVisita
-        }
-      />
-    );
   } else if (tela === 'familia') {
     conteudo = (
       <FamiliaScreen
@@ -452,23 +321,11 @@ export default function App() {
         }
       />
     );
-  } else if (tela === 'conquista') {
+  } else if (tela === 'historico') {
     conteudo = (
-      <ConquistaScreen
-        visita={visitaConquistada}
-        onContinuar={() => {
-          setVisitaConquistada(null);
-          setTela('explorar');
-        }}
-      />
-    );
-  } else if (tela === 'explorar') {
-    conteudo = (
-      <ExplorarScreen
-        visitas={visitasExplorar}
-        onRegistrarVisita={
-          abrirRegistroDeVisita
-        }
+      <HistoricoScreen
+        usuario={perfil}
+        grupoId={temGrupo ? grupoId : null}
       />
     );
   } else {
@@ -486,9 +343,7 @@ export default function App() {
       <View style={styles.container}>
         {conteudo}
 
-        {tela !== 'menu' &&
-          tela !== 'camera' &&
-          tela !== 'conquista' && (
+        {tela !== 'menu' && (
             <TouchableOpacity
               style={
                 styles.voltarButton
