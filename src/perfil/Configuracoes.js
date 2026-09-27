@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import {
+  ActivityIndicator,
   Alert,
   StyleSheet,
   Switch,
@@ -12,6 +13,12 @@ import {
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {
+  biometriaDisponivel,
+  lerPreferencia,
+  PREFERENCIA,
+  salvarPreferencia,
+} from '../dados/biometria';
 import { cores, fontes } from '../theme/theme';
 
 const ITENS = [
@@ -85,6 +92,12 @@ export default function Configuracoes({ usuario, onSair }) {
   const [notificacoes, setNotificacoes] = useState(
     CONFIGURACOES_PADRAO
   );
+
+  const [segurancaAberta, setSegurancaAberta] =
+    useState(false);
+
+  // null = carregando
+  const [biometria, setBiometria] = useState(null);
 
   const chaveNotificacoes = usuario?.uid
     ? `@appintegrado:notificacoes:${usuario.uid}`
@@ -162,9 +175,51 @@ export default function Configuracoes({ usuario, onSair }) {
     }
 
     if (chave === 'seguranca') {
+      abrirSeguranca();
+    }
+  }
+
+  async function abrirSeguranca() {
+    setSegurancaAberta(true);
+    setBiometria(null);
+
+    try {
+      const [disponivel, preferencia] = await Promise.all([
+        biometriaDisponivel(),
+        lerPreferencia(usuario.uid),
+      ]);
+
+      setBiometria({
+        disponivel,
+        ativada: preferencia === PREFERENCIA.ATIVADA,
+      });
+    } catch (error) {
+      console.error(
+        'Erro ao carregar configuração de biometria:',
+        error
+      );
+
+      setBiometria({ disponivel: false, ativada: false });
+    }
+  }
+
+  async function alternarBiometria(ativar) {
+    try {
+      await salvarPreferencia(
+        usuario.uid,
+        ativar ? PREFERENCIA.ATIVADA : PREFERENCIA.RECUSADA
+      );
+
+      setBiometria((atual) => ({ ...atual, ativada: ativar }));
+    } catch (error) {
+      console.error(
+        'Erro ao salvar configuração de biometria:',
+        error
+      );
+
       Alert.alert(
-        'Segurança',
-        'As configurações de segurança serão implementadas aqui.'
+        'Erro',
+        'Não foi possível salvar a configuração. Tente novamente.'
       );
     }
   }
@@ -188,6 +243,83 @@ export default function Configuracoes({ usuario, onSair }) {
           onPress: onSair,
         },
       ]
+    );
+  }
+
+  if (segurancaAberta) {
+    return (
+      <View style={styles.container}>
+        <TouchableOpacity
+          style={styles.voltar}
+          onPress={() => setSegurancaAberta(false)}
+        >
+          <Feather
+            name="arrow-left"
+            size={20}
+            color={cores.texto}
+          />
+
+          <Text style={styles.voltarTexto}>
+            Configurações
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={styles.title}>
+          Segurança
+        </Text>
+
+        {biometria === null ? (
+          <ActivityIndicator color={cores.primaria} />
+        ) : (
+          <>
+            <View style={styles.notificacao}>
+              <View style={styles.notificacaoIcone}>
+                <Feather
+                  name="unlock"
+                  size={19}
+                  color={cores.primaria}
+                />
+              </View>
+
+              <View style={styles.notificacaoConteudo}>
+                <Text style={styles.notificacaoTitulo}>
+                  Acesso rápido por biometria
+                </Text>
+
+                <Text style={styles.notificacaoDescricao}>
+                  No login, informe seu e-mail e a biometria do
+                  aparelho abre sozinha. Depois de 3 falhas, a
+                  senha é pedida.
+                </Text>
+              </View>
+
+              <Switch
+                value={biometria.ativada}
+                onValueChange={alternarBiometria}
+                disabled={!biometria.disponivel && !biometria.ativada}
+                trackColor={{
+                  false: cores.borda,
+                  true: cores.primaria,
+                }}
+                thumbColor={cores.superficie}
+              />
+            </View>
+
+            {!biometria.disponivel && (
+              <Text style={styles.aviso}>
+                Este aparelho não tem biometria cadastrada.
+                Cadastre uma digital ou rosto nas configurações
+                do aparelho para usar o acesso rápido.
+              </Text>
+            )}
+
+            <Text style={styles.aviso}>
+              Ao tocar em "Sair do aplicativo", a próxima
+              entrada sempre pede e-mail e senha.
+            </Text>
+          </>
+        )}
+      </View>
     );
   }
 
@@ -405,6 +537,13 @@ const styles = StyleSheet.create({
     fontFamily: fontes.destaque,
     color: cores.texto,
     marginBottom: 3,
+  },
+
+  aviso: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: cores.textoSecundario,
+    marginTop: 14,
   },
 
   notificacaoDescricao: {

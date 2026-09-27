@@ -26,7 +26,9 @@ import {
   getDocs,
 } from 'firebase/firestore';
 
-import { db } from './src/config/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+
+import { auth, db } from './src/config/firebase';
 
 import Menu from './Components/Menu';
 import TelaMapa from './src/mapa/TelaMapa';
@@ -36,6 +38,7 @@ import HistoricoScreen from './src/historico/HistoricoScreen';
 import SOSScreen from './src/sos/SOSScreen';
 
 import AutenticacaoScreen from './src/autenticacao/AutenticacaoScreen';
+import { decidirAcessoRestaurado } from './src/dados/biometria';
 import GrupoScreen from './src/grupo/GrupoScreen';
 import { useCompartilharLocalizacao } from './src/mapa/compartilharLocalizacao';
 
@@ -52,6 +55,11 @@ export default function App() {
   });
 
   const [usuario, setUsuario] = useState(null);
+
+  // Abertura do app: sessão restaurada pelo Firebase, travada até o
+  // login destravá-la (biometria) ou ser feito com a senha.
+  const [restaurandoSessao, setRestaurandoSessao] = useState(true);
+  const [sessaoBloqueada, setSessaoBloqueada] = useState(null);
   const [perfil, setPerfil] = useState(null);
   const [grupoId, setGrupoId] = useState(null);
   const [temGrupo, setTemGrupo] = useState(false);
@@ -182,6 +190,32 @@ export default function App() {
     verificarGrupo();
   }, [usuario]);
 
+  // Só a PRIMEIRA emissão (sessão restaurada ao abrir) é tratada aqui.
+  // Login, cadastro e "Sair" continuam pelos fluxos das telas.
+  useEffect(() => {
+    let primeira = true;
+
+    const cancelar = onAuthStateChanged(auth, async (usuarioFirebase) => {
+      if (!primeira) return;
+      primeira = false;
+
+      try {
+        const decisao = await decidirAcessoRestaurado(usuarioFirebase);
+
+        if (decisao === 'desbloquear') {
+          setSessaoBloqueada(usuarioFirebase);
+        }
+      } catch (erro) {
+        console.error('Erro ao restaurar sessão:', erro);
+        await signOut(auth).catch(() => {});
+      } finally {
+        setRestaurandoSessao(false);
+      }
+    });
+
+    return cancelar;
+  }, []);
+
   // Compartilha a localização enquanto o app estiver em uso
   // (somente para usuário autenticado que pertence a uma família).
   const localizacao = useCompartilharLocalizacao(
@@ -207,17 +241,33 @@ export default function App() {
     setTela('menu');
   }
 
+  if (!usuario && restaurandoSessao) {
+    return (
+      <SafeAreaProvider>
+        <View style={styles.carregandoContainer}>
+          <Text style={styles.carregandoTexto}>
+            Carregando...
+          </Text>
+
+          <StatusBar style="auto" />
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
   if (!usuario) {
     return (
       <SafeAreaProvider>
         <View style={styles.container}>
           <AutenticacaoScreen
+            sessaoRestaurada={sessaoBloqueada}
             onAutenticado={(usuarioFirebase) => {
               console.log(
                 'Usuário autenticado:',
                 usuarioFirebase.uid
               );
 
+              setSessaoBloqueada(null);
               setUsuario(
                 usuarioFirebase
               );

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
+  Alert,
   StyleSheet,
   Text,
   TextInput,
@@ -13,15 +14,56 @@ import {
 
 import {
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
 } from 'firebase/auth';
 
 import { auth } from '../config/firebase';
 import { salvarPerfilUsuario } from '../dados/salvarUsuario';
+import {
+  deveOferecerBiometria,
+  PREFERENCIA,
+  salvarPreferencia,
+  zerarFalhas,
+} from '../dados/biometria';
+import VerificaBiometria from '../biometria/VerificaBiometria';
 import { cores, fontes, raio } from '../theme/theme';
 
-export default function AutenticacaoScreen({ onAutenticado }) {
-  const [tela, setTela] = useState('inicio');
+function perguntarAcessoRapido() {
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Ativar acesso rápido por biometria?',
+      'Nos próximos acessos, basta informar seu e-mail e usar a biometria do aparelho. Sua senha continua valendo.',
+      [
+        { text: 'Agora não', style: 'cancel', onPress: () => resolve(PREFERENCIA.RECUSADA) },
+        { text: 'Ativar', onPress: () => resolve(PREFERENCIA.ATIVADA) },
+      ],
+      { cancelable: false }
+    );
+  });
+}
+
+// Pergunta uma única vez (aparelho com biometria e sem escolha anterior).
+// Uma falha aqui nunca impede o login.
+async function oferecerAcessoRapido(uid) {
+  try {
+    if (!(await deveOferecerBiometria(uid))) return;
+
+    await salvarPreferencia(uid, await perguntarAcessoRapido());
+  } catch (erro) {
+    console.error('Erro ao salvar preferência de biometria:', erro);
+  }
+}
+
+/*
+ * sessaoRestaurada: sessão do Firebase guardada neste aparelho e
+ * travada (biometria ativada). Se o e-mail digitado for o dela, a
+ * biometria abre sozinha (VerificaBiometria) e destrava a sessão.
+ */
+export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) {
+  const [tela, setTela] = useState(sessaoRestaurada ? 'login' : 'inicio');
+
+  const senhaRef = useRef(null);
 
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
@@ -58,6 +100,8 @@ export default function AutenticacaoScreen({ onAutenticado }) {
 
         console.log('Conta criada:', usuario.uid);
 
+        await oferecerAcessoRapido(usuario.uid);
+
         onAutenticado(usuario);
       } else {
         const resultado = await signInWithEmailAndPassword(
@@ -67,6 +111,11 @@ export default function AutenticacaoScreen({ onAutenticado }) {
         );
 
         console.log('Login realizado:', resultado.user.uid);
+
+        // Senha correta: zera as falhas de biometria deste usuário.
+        await zerarFalhas(resultado.user.uid).catch(() => {});
+
+        await oferecerAcessoRapido(resultado.user.uid);
 
         onAutenticado(resultado.user);
       }
@@ -84,12 +133,53 @@ export default function AutenticacaoScreen({ onAutenticado }) {
         e.code === 'auth/wrong-password'
       ) {
         setErro('E-mail ou senha incorretos.');
+      } else if (e.code === 'auth/too-many-requests') {
+        setErro('Muitas tentativas. Aguarde alguns minutos e tente novamente.');
+      } else if (e.code === 'auth/network-request-failed') {
+        setErro('Sem conexão. Verifique sua internet e tente novamente.');
       } else {
         setErro('Não foi possível continuar. Tente novamente.');
       }
     }
 
     setCarregando(false);
+  }
+
+  // Biometria confirmada: entra com a sessão que o Firebase já guardava.
+  function entrarPelaBiometria() {
+    if (!auth.currentUser) {
+      setErro('Sua sessão expirou. Digite sua senha para continuar.');
+      senhaRef.current?.focus();
+      return;
+    }
+
+    console.log('Login por biometria:', auth.currentUser.uid);
+
+    onAutenticado(auth.currentUser);
+  }
+
+  async function esqueciSenha() {
+    setErro('');
+
+    if (!email.trim()) {
+      setErro('Digite seu e-mail para redefinir a senha.');
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+
+      Alert.alert(
+        'Verifique seu e-mail',
+        'Se houver uma conta com este e-mail, enviamos um link para redefinir a senha.'
+      );
+    } catch (e) {
+      if (e.code === 'auth/invalid-email') {
+        setErro('Digite um e-mail válido.');
+      } else {
+        setErro('Não foi possível enviar o e-mail. Tente novamente.');
+      }
+    }
   }
 
   function abrirTela(tipo) {
@@ -207,17 +297,31 @@ export default function AutenticacaoScreen({ onAutenticado }) {
           placeholder="Seu e-mail"
           placeholderTextColor={cores.textoSecundario}
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(texto) => {
+            setEmail(texto);
+            setErro('');
+          }}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          returnKeyType="next"
         />
+
+        {!cadastro && (
+          <VerificaBiometria
+            email={email}
+            sessao={sessaoRestaurada}
+            onDesbloqueado={entrarPelaBiometria}
+            onUsarSenha={() => senhaRef.current?.focus()}
+          />
+        )}
 
         <Text style={styles.label}>
           Senha
         </Text>
 
         <TextInput
+          ref={senhaRef}
           style={styles.input}
           placeholder="Sua senha"
           placeholderTextColor={cores.textoSecundario}
@@ -248,6 +352,18 @@ export default function AutenticacaoScreen({ onAutenticado }) {
               : 'Entrar no app'}
           </Text>
         </TouchableOpacity>
+
+        {!cadastro && (
+          <TouchableOpacity
+            style={styles.botaoVoltar}
+            onPress={esqueciSenha}
+            disabled={carregando}
+          >
+            <Text style={styles.botaoVoltarTexto}>
+              Esqueci minha senha
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={styles.botaoVoltar}
