@@ -1,6 +1,6 @@
-import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, writeBatch } from '../armazenamento/bancoLocal';
 
-import { auth, db } from '../config/firebase';
+import { auth, db } from '../config/armazenamento';
 
 // Limites também conferidos no firestore.rules.
 export const LIMITES_PERFIL = {
@@ -97,7 +97,7 @@ export async function salvarPerfilUsuario(usuario) {
 
   await lote.commit();
 
-  console.log('Perfil salvo no Firebase:', usuario.uid);
+  console.log('Perfil salvo:', usuario.uid);
 }
 
 /*

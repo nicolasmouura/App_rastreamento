@@ -35,11 +35,6 @@ const ITENS = [
     icone: 'bell',
   },
   {
-    chave: 'localizacao',
-    label: 'Localização',
-    icone: 'map-pin',
-  },
-  {
     chave: 'seguranca',
     label: 'Segurança',
     icone: 'lock',
@@ -200,14 +195,6 @@ export default function Configuracoes({
 
     if (chave === 'notificacoes') {
       setNotificacoesAbertas(true);
-      return;
-    }
-
-    if (chave === 'localizacao') {
-      Alert.alert(
-        'Localização',
-        'As configurações de localização serão implementadas aqui.'
-      );
       return;
     }
 

@@ -9,9 +9,9 @@ import {
   serverTimestamp,
   updateDoc,
   where,
-} from 'firebase/firestore';
+} from '../armazenamento/bancoLocal';
 
-import { db } from '../config/firebase';
+import { db } from '../config/armazenamento';
 import { coordenadaValida } from './buscarFamiliares';
 import { formatarHorario } from './historico';
 

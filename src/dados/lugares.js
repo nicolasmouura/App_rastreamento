@@ -5,9 +5,9 @@ import {
   onSnapshot,
   serverTimestamp,
   setDoc,
-} from 'firebase/firestore';
+} from '../armazenamento/bancoLocal';
 
-import { db } from '../config/firebase';
+import { db } from '../config/armazenamento';
 import { coordenadaValida, distanciaEmMetros } from './buscarFamiliares';
 
 /*

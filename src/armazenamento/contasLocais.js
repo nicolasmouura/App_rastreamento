@@ -1,0 +1,170 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+
+import { gerarId } from './bancoLocal';
+
+/*
+ * Contas locais no lugar do Firebase Authentication (por enquanto).
+ *
+ * Mesmos nomes de função e mesmos códigos de erro ('auth/...') de
+ * 'firebase/auth', para as telas continuarem iguais.
+ *
+ * AsyncStorage: as contas (uid e e-mail) e a sessão aberta.
+ * A senha nunca vai para o AsyncStorage: fica no SecureStore
+ * (criptografado pelo sistema), só neste aparelho.
+ */
+
+const CHAVE_CONTAS = '@conecta:contas';
+const CHAVE_SESSAO = '@conecta:sessao';
+
+// Chaves do SecureStore aceitam apenas letras, números, ".", "-" e "_".
+const chaveSenha = (uid) => `conecta.senha.${uid}`;
+
+const EMAIL_VALIDO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const TAMANHO_MINIMO_SENHA = 6;
+
+export const auth = { currentUser: null };
+
+const ouvintes = new Set();
+
+function erroAuth(codigo) {
+  const erro = new Error(codigo);
+  erro.code = codigo;
+  return erro;
+}
+
+function normalizarEmail(email) {
+  return (email || '').trim().toLowerCase();
+}
+
+function criarUsuario(conta) {
+  return { uid: conta.uid, email: conta.email, displayName: null };
+}
+
+// { [email]: { uid, email, criadaEm } }
+async function lerContas() {
+  const texto = await AsyncStorage.getItem(CHAVE_CONTAS);
+
+  return texto ? JSON.parse(texto) : {};
+}
+
+// Sessão guardada (equivale à persistência do Firebase Auth).
+const carregamento = (async () => {
+  try {
+    const uid = await AsyncStorage.getItem(CHAVE_SESSAO);
+
+    if (!uid) return;
+
+    const conta = Object.values(await lerContas()).find((item) => item.uid === uid);
+
+    if (conta) {
+      auth.currentUser = criarUsuario(conta);
+    }
+  } catch (erro) {
+    console.log('Sessão local não restaurada:', erro);
+  }
+})();
+
+function avisarOuvintes() {
+  for (const ouvinte of [...ouvintes]) {
+    ouvinte(auth.currentUser);
+  }
+}
+
+async function abrirSessao(conta) {
+  await AsyncStorage.setItem(CHAVE_SESSAO, conta.uid);
+
+  auth.currentUser = criarUsuario(conta);
+  avisarOuvintes();
+
+  return { user: auth.currentUser };
+}
+
+export function onAuthStateChanged(_auth, callback) {
+  let ativo = true;
+
+  const ouvinte = (usuario) => {
+    if (ativo) callback(usuario);
+  };
+
+  // Como no Firebase: avisa a sessão atual e, depois, cada mudança.
+  carregamento.then(() => {
+    if (!ativo) return;
+
+    ouvintes.add(ouvinte);
+    callback(auth.currentUser);
+  });
+
+  return () => {
+    ativo = false;
+    ouvintes.delete(ouvinte);
+  };
+}
+
+export async function createUserWithEmailAndPassword(_auth, email, senha) {
+  await carregamento;
+
+  const emailNormalizado = normalizarEmail(email);
+
+  if (!EMAIL_VALIDO.test(emailNormalizado)) throw erroAuth('auth/invalid-email');
+  if (!senha) throw erroAuth('auth/missing-password');
+  if (senha.length < TAMANHO_MINIMO_SENHA) throw erroAuth('auth/weak-password');
+
+  const contas = await lerContas();
+
+  if (contas[emailNormalizado]) {
+    throw erroAuth('auth/email-already-in-use');
+  }
+
+  const conta = {
+    uid: gerarId(28),
+    email: emailNormalizado,
+    criadaEm: new Date().toISOString(),
+  };
+
+  await SecureStore.setItemAsync(chaveSenha(conta.uid), senha);
+  await AsyncStorage.setItem(
+    CHAVE_CONTAS,
+    JSON.stringify({ ...contas, [emailNormalizado]: conta })
+  );
+
+  return abrirSessao(conta);
+}
+
+export async function signInWithEmailAndPassword(_auth, email, senha) {
+  await carregamento;
+
+  const emailNormalizado = normalizarEmail(email);
+
+  if (!EMAIL_VALIDO.test(emailNormalizado)) throw erroAuth('auth/invalid-email');
+  if (!senha) throw erroAuth('auth/missing-password');
+
+  const conta = (await lerContas())[emailNormalizado];
+  const senhaSalva = conta
+    ? await SecureStore.getItemAsync(chaveSenha(conta.uid))
+    : null;
+
+  // Como no Firebase: não diz se o erro foi o e-mail ou a senha.
+  if (!conta || senhaSalva === null || senhaSalva !== senha) {
+    throw erroAuth('auth/invalid-credential');
+  }
+
+  return abrirSessao(conta);
+}
+
+export async function signOut() {
+  await carregamento;
+  await AsyncStorage.removeItem(CHAVE_SESSAO);
+
+  auth.currentUser = null;
+  avisarOuvintes();
+}
+
+// Sem servidor não há como enviar e-mail.
+export async function sendPasswordResetEmail(_auth, email) {
+  if (!EMAIL_VALIDO.test(normalizarEmail(email))) {
+    throw erroAuth('auth/invalid-email');
+  }
+
+  throw erroAuth('auth/operation-not-allowed');
+}

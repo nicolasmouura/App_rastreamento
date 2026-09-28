@@ -16,9 +16,9 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
-} from 'firebase/auth';
+} from '../armazenamento/contasLocais';
 
-import { auth } from '../config/firebase';
+import { auth } from '../config/armazenamento';
 import {
   salvarPerfilUsuario,
   validarCadastro,
@@ -152,6 +152,8 @@ export default function AutenticacaoScreen({ onAutenticado, aviso }) {
     } catch (e) {
       if (e.code === 'auth/invalid-email') {
         setErro('Digite um e-mail válido.');
+      } else if (e.code === 'auth/operation-not-allowed') {
+        setErro('Por enquanto os dados ficam só neste aparelho, então não é possível redefinir a senha por e-mail.');
       } else {
         setErro('Não foi possível enviar o e-mail. Tente novamente.');
       }

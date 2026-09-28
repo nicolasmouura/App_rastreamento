@@ -21,15 +21,13 @@ import {
 } from '@expo-google-fonts/poppins';
 
 import {
-  collection,
   doc,
   getDoc,
-  getDocs,
-} from 'firebase/firestore';
+} from './src/armazenamento/bancoLocal';
 
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from './src/armazenamento/contasLocais';
 
-import { auth, db } from './src/config/firebase';
+import { auth, db } from './src/config/armazenamento';
 
 import Menu from './Components/Menu';
 import TelaMapa from './src/mapa/TelaMapa';
@@ -78,9 +76,6 @@ export default function App() {
   const [pulouGrupo, setPulouGrupo] = useState(false);
   const [verificandoGrupo, setVerificandoGrupo] = useState(false);
   const [tela, setTela] = useState('menu');
-
-  // Conquistas já registradas do usuário (exibidas no Perfil)
-  const [visitasExplorar, setVisitasExplorar] = useState([]);
 
   useEffect(() => {
     async function verificarGrupo() {
@@ -154,38 +149,9 @@ export default function App() {
           setGrupoId(null);
           setTemGrupo(false);
         }
-
-        // Carrega as conquistas salvas do usuário
-        const referenciaConquistas =
-          collection(
-            db,
-            'usuarios',
-            usuario.uid,
-            'conquistas'
-          );
-
-        const resultadoConquistas =
-          await getDocs(
-            referenciaConquistas
-          );
-
-        const conquistas =
-          resultadoConquistas.docs.map(
-            (documento) => ({
-              id: documento.id,
-              ...documento.data(),
-            })
-          );
-
-        setVisitasExplorar(conquistas);
-
-        console.log(
-          'Conquistas carregadas:',
-          conquistas.length
-        );
       } catch (e) {
         console.error(
-          'Erro ao verificar grupo ou carregar conquistas:',
+          'Erro ao verificar grupo:',
           e
         );
 
@@ -201,7 +167,6 @@ export default function App() {
         );
 
         setTemGrupo(false);
-        setVisitasExplorar([]);
       } finally {
         setVerificandoGrupo(false);
       }
@@ -276,7 +241,6 @@ export default function App() {
     setGrupoId(null);
     setTemGrupo(false);
     setPulouGrupo(false);
-    setVisitasExplorar([]);
     setTela('menu');
   }
 
@@ -444,7 +408,6 @@ export default function App() {
       <PerfilScreen
         usuario={perfil}
         posicaoAtual={localizacao.coordenadas}
-        visitas={visitasExplorar}
         onSair={sairDoAplicativo}
         onPerfilAtualizado={({ nome }) =>
           setPerfil((atual) => ({
