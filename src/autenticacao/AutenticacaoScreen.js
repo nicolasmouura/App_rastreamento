@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   Alert,
   StyleSheet,
@@ -23,50 +23,18 @@ import {
   salvarPerfilUsuario,
   validarCadastro,
 } from '../dados/salvarUsuario';
-import {
-  deveOferecerBiometria,
-  PREFERENCIA,
-  salvarPreferencia,
-  zerarFalhas,
-} from '../dados/biometria';
-import VerificaBiometria from '../biometria/VerificaBiometria';
+import { zerarFalhas } from '../dados/biometria';
 import { cores, fontes, raio } from '../theme/theme';
 
-function perguntarAcessoRapido() {
-  return new Promise((resolve) => {
-    Alert.alert(
-      'Ativar acesso rápido por biometria?',
-      'Nos próximos acessos, basta informar seu e-mail e usar a biometria do aparelho. Sua senha continua valendo.',
-      [
-        { text: 'Agora não', style: 'cancel', onPress: () => resolve(PREFERENCIA.RECUSADA) },
-        { text: 'Ativar', onPress: () => resolve(PREFERENCIA.ATIVADA) },
-      ],
-      { cancelable: false }
-    );
-  });
-}
-
-// Pergunta uma única vez (aparelho com biometria e sem escolha anterior).
-// Uma falha aqui nunca impede o login.
-async function oferecerAcessoRapido(uid) {
-  try {
-    if (!(await deveOferecerBiometria(uid))) return;
-
-    await salvarPreferencia(uid, await perguntarAcessoRapido());
-  } catch (erro) {
-    console.error('Erro ao salvar preferência de biometria:', erro);
-  }
-}
-
 /*
- * sessaoRestaurada: sessão do Firebase guardada neste aparelho e
- * travada (biometria ativada). Se o e-mail digitado for o dela, a
- * biometria abre sozinha (VerificaBiometria) e destrava a sessão.
+ * Login e cadastro por e-mail e senha. Depois daqui o App ainda pede
+ * a biometria (VerificaBiometria) antes de liberar o acesso.
+ *
+ * aviso: mensagem de quando a sessão foi encerrada (ex.: 3 falhas na
+ * biometria); abre direto no login mostrando o motivo.
  */
-export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) {
-  const [tela, setTela] = useState(sessaoRestaurada ? 'login' : 'inicio');
-
-  const senhaRef = useRef(null);
+export default function AutenticacaoScreen({ onAutenticado, aviso }) {
+  const [tela, setTela] = useState(aviso ? 'login' : 'inicio');
 
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
@@ -78,7 +46,7 @@ export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) 
   const [endereco, setEndereco] = useState('');
   const [confirmacao, setConfirmacao] = useState('');
 
-  const [erro, setErro] = useState('');
+  const [erro, setErro] = useState(aviso || '');
   const [carregando, setCarregando] = useState(false);
 
   async function continuar() {
@@ -125,8 +93,6 @@ export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) 
 
         console.log('Conta criada:', usuario.uid);
 
-        await oferecerAcessoRapido(usuario.uid);
-
         onAutenticado(usuario);
       } else {
         const resultado = await signInWithEmailAndPassword(
@@ -139,8 +105,6 @@ export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) 
 
         // Senha correta: zera as falhas de biometria deste usuário.
         await zerarFalhas(resultado.user.uid).catch(() => {});
-
-        await oferecerAcessoRapido(resultado.user.uid);
 
         onAutenticado(resultado.user);
       }
@@ -168,19 +132,6 @@ export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) 
     }
 
     setCarregando(false);
-  }
-
-  // Biometria confirmada: entra com a sessão que o Firebase já guardava.
-  function entrarPelaBiometria() {
-    if (!auth.currentUser) {
-      setErro('Sua sessão expirou. Digite sua senha para continuar.');
-      senhaRef.current?.focus();
-      return;
-    }
-
-    console.log('Login por biometria:', auth.currentUser.uid);
-
-    onAutenticado(auth.currentUser);
   }
 
   async function esqueciSenha() {
@@ -379,21 +330,11 @@ export default function AutenticacaoScreen({ onAutenticado, sessaoRestaurada }) 
           </>
         )}
 
-        {!cadastro && (
-          <VerificaBiometria
-            email={email}
-            sessao={sessaoRestaurada}
-            onDesbloqueado={entrarPelaBiometria}
-            onUsarSenha={() => senhaRef.current?.focus()}
-          />
-        )}
-
         <Text style={styles.label}>
           Senha
         </Text>
 
         <TextInput
-          ref={senhaRef}
           style={styles.input}
           placeholder="Sua senha"
           placeholderTextColor={cores.textoSecundario}

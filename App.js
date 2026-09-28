@@ -5,6 +5,7 @@ import {
 } from 'react-native-safe-area-context';
 
 import {
+  AppState,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -38,7 +39,7 @@ import HistoricoScreen from './src/historico/HistoricoScreen';
 import SOSScreen from './src/sos/SOSScreen';
 
 import AutenticacaoScreen from './src/autenticacao/AutenticacaoScreen';
-import { decidirAcessoRestaurado } from './src/dados/biometria';
+import VerificaBiometria from './src/biometria/VerificaBiometria';
 import { garantirEntradaDiretorio } from './src/dados/salvarUsuario';
 import GrupoScreen from './src/grupo/GrupoScreen';
 import { useCompartilharLocalizacao } from './src/mapa/compartilharLocalizacao';
@@ -49,18 +50,28 @@ import {
   raio,
 } from './src/theme/theme';
 
+// Tempo fora do app a partir do qual a biometria é pedida de novo.
+// A folga evita pedir após diálogos rápidos do sistema (ex.: permissão
+// de localização no Android, que também coloca o app em segundo plano).
+const TOLERANCIA_SEGUNDO_PLANO = 10 * 1000;
+
 export default function App() {
   const [fontsLoaded] = useFonts({
     Poppins_700Bold,
     Poppins_600SemiBold,
   });
 
+  // Usuário liberado (já passou pela biometria).
   const [usuario, setUsuario] = useState(null);
 
-  // Abertura do app: sessão restaurada pelo Firebase, travada até o
-  // login destravá-la (biometria) ou ser feito com a senha.
+  // Biometria obrigatória em toda entrada:
+  //   usuarioPendente → sessão restaurada ou login/cadastro por senha,
+  //                     aguardando a biometria para liberar o app;
+  //   bloqueado       → app travado de novo ao voltar do segundo plano.
   const [restaurandoSessao, setRestaurandoSessao] = useState(true);
-  const [sessaoBloqueada, setSessaoBloqueada] = useState(null);
+  const [usuarioPendente, setUsuarioPendente] = useState(null);
+  const [bloqueado, setBloqueado] = useState(false);
+  const [avisoLogin, setAvisoLogin] = useState('');
   const [perfil, setPerfil] = useState(null);
   const [grupoId, setGrupoId] = useState(null);
   const [temGrupo, setTemGrupo] = useState(false);
@@ -199,31 +210,48 @@ export default function App() {
     verificarGrupo();
   }, [usuario]);
 
-  // Só a PRIMEIRA emissão (sessão restaurada ao abrir) é tratada aqui.
+  // Só a PRIMEIRA emissão (sessão restaurada ao abrir) é tratada aqui:
+  // a sessão guardada fica travada até a biometria ser confirmada.
   // Login, cadastro e "Sair" continuam pelos fluxos das telas.
   useEffect(() => {
     let primeira = true;
 
-    const cancelar = onAuthStateChanged(auth, async (usuarioFirebase) => {
+    const cancelar = onAuthStateChanged(auth, (usuarioFirebase) => {
       if (!primeira) return;
       primeira = false;
 
-      try {
-        const decisao = await decidirAcessoRestaurado(usuarioFirebase);
-
-        if (decisao === 'desbloquear') {
-          setSessaoBloqueada(usuarioFirebase);
-        }
-      } catch (erro) {
-        console.error('Erro ao restaurar sessão:', erro);
-        await signOut(auth).catch(() => {});
-      } finally {
-        setRestaurandoSessao(false);
+      if (usuarioFirebase) {
+        setUsuarioPendente(usuarioFirebase);
       }
+
+      setRestaurandoSessao(false);
     });
 
     return cancelar;
   }, []);
+
+  // Voltou do segundo plano depois da tolerância: trava de novo.
+  // Enquanto travado não escuta, para a própria biometria (que pode
+  // tirar o app do primeiro plano) não disparar um novo bloqueio.
+  useEffect(() => {
+    if (!usuario || bloqueado) return;
+
+    let saiuEm = null;
+
+    const assinatura = AppState.addEventListener('change', (estado) => {
+      if (estado === 'background') {
+        saiuEm = Date.now();
+      } else if (estado === 'active' && saiuEm !== null) {
+        if (Date.now() - saiuEm >= TOLERANCIA_SEGUNDO_PLANO) {
+          setBloqueado(true);
+        }
+
+        saiuEm = null;
+      }
+    });
+
+    return () => assinatura.remove();
+  }, [usuario, bloqueado]);
 
   // Compartilha a localização enquanto o app estiver em uso
   // (somente para usuário autenticado que pertence a uma família).
@@ -242,12 +270,36 @@ export default function App() {
 
   function sairDoAplicativo() {
     setUsuario(null);
+    setUsuarioPendente(null);
+    setBloqueado(false);
     setPerfil(null);
     setGrupoId(null);
     setTemGrupo(false);
     setPulouGrupo(false);
     setVisitasExplorar([]);
     setTela('menu');
+  }
+
+  function desbloquear() {
+    if (usuarioPendente) {
+      console.log('Biometria confirmada:', usuarioPendente.uid);
+
+      setUsuario(usuarioPendente);
+      setUsuarioPendente(null);
+    }
+
+    setBloqueado(false);
+  }
+
+  // Sair pela tela de bloqueio ou esgotar as tentativas de biometria:
+  // encerra a sessão; a próxima entrada é por e-mail e senha.
+  async function encerrarSessao(mensagem) {
+    await signOut(auth).catch((erro) =>
+      console.error('Erro ao encerrar sessão:', erro)
+    );
+
+    sairDoAplicativo();
+    setAvisoLogin(mensagem);
   }
 
   if (!usuario && restaurandoSessao) {
@@ -264,20 +316,40 @@ export default function App() {
     );
   }
 
+  const usuarioTravado =
+    usuarioPendente || (bloqueado ? usuario : null);
+
+  if (usuarioTravado) {
+    return (
+      <SafeAreaProvider>
+        <View style={styles.container}>
+          <VerificaBiometria
+            usuario={usuarioTravado}
+            onDesbloqueado={desbloquear}
+            onEncerrar={encerrarSessao}
+          />
+
+          <StatusBar style="auto" />
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
   if (!usuario) {
     return (
       <SafeAreaProvider>
         <View style={styles.container}>
           <AutenticacaoScreen
-            sessaoRestaurada={sessaoBloqueada}
+            aviso={avisoLogin}
             onAutenticado={(usuarioFirebase) => {
               console.log(
                 'Usuário autenticado:',
                 usuarioFirebase.uid
               );
 
-              setSessaoBloqueada(null);
-              setUsuario(
+              // Senha conferida; falta a biometria.
+              setAvisoLogin('');
+              setUsuarioPendente(
                 usuarioFirebase
               );
             }}

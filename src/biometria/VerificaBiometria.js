@@ -1,44 +1,41 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import {
   autenticarComBiometria,
-  biometriaDisponivel,
-  decidirInicioBiometria,
   lerFalhas,
-  lerPreferencia,
   MAXIMO_FALHAS,
   proximoPasso,
   registrarFalha,
+  temReconhecimentoFacial,
   zerarFalhas,
 } from '../dados/biometria';
 import { cores, fontes, raio } from '../theme/theme';
 
-// Espera o usuário parar de digitar o e-mail antes de abrir a biometria.
-const ESPERA_APOS_DIGITAR = 600;
-
 /*
- * Parte biométrica da tela de login (não é uma tela à parte).
- * Quando o e-mail digitado é o da sessão guardada neste aparelho e a
- * biometria está ativada, abre a biometria automaticamente.
- *   sucesso     → onDesbloqueado()
- *   3 falhas,
+ * Tela de bloqueio: nada do app aparece antes da biometria.
+ * Abre a biometria sozinha assim que aparece.
+ *   sucesso          → onDesbloqueado()
+ *   3 falhas         → onEncerrar(mensagem): sessão encerrada, entra
+ *                      de novo só com e-mail e senha
+ *   cancelar,
  *   bloqueio ou
- *   indisponível → encerra o fluxo e pede a senha (onUsarSenha)
- *   cancelar    → não conta; permite tentar de novo ou usar a senha
+ *   indisponível     → continua travada, com "Tentar novamente"
+ *   "Sair da conta"  → onEncerrar('')
  */
-export default function VerificaBiometria({ email, sessao, onDesbloqueado, onUsarSenha }) {
-  // inativo | autenticando | aguardando | encerrado
-  const [etapa, setEtapa] = useState('inativo');
+export default function VerificaBiometria({ usuario, onDesbloqueado, onEncerrar }) {
+  // verificando | aguardando
+  const [etapa, setEtapa] = useState('verificando');
   const [mensagem, setMensagem] = useState('');
-  const [config, setConfig] = useState(null);
+  const [facial, setFacial] = useState(true);
 
   const falhasRef = useRef(0);
   const montado = useRef(true);
@@ -50,147 +47,163 @@ export default function VerificaBiometria({ email, sessao, onDesbloqueado, onUsa
     };
   }, []);
 
-  // Preferência, disponibilidade e contador da sessão guardada.
-  useEffect(() => {
-    if (!sessao?.uid) {
-      setConfig(null);
-      return;
-    }
-
-    let ativo = true;
-
-    Promise.all([lerPreferencia(sessao.uid), biometriaDisponivel(), lerFalhas(sessao.uid)])
-      .then(([preferencia, disponivel, falhas]) => {
-        if (!ativo) return;
-        falhasRef.current = falhas;
-        setConfig({ preferencia, disponivel });
-      })
-      .catch((erro) => console.log('Configuração de biometria indisponível:', erro));
-
-    return () => {
-      ativo = false;
-    };
-  }, [sessao?.uid]);
-
-  function encerrar(texto) {
-    setEtapa('encerrado');
-    setMensagem(texto);
-    onUsarSenha();
-  }
-
   async function tentar() {
-    setEtapa('autenticando');
+    setEtapa('verificando');
     setMensagem('');
 
     const classificacao = await autenticarComBiometria();
     const passo = proximoPasso(classificacao, falhasRef.current);
 
+    if (classificacao === 'sucesso') {
+      await zerarFalhas(usuario.uid).catch(() => {});
+    } else if (classificacao === 'falha') {
+      falhasRef.current = await registrarFalha(usuario.uid).catch(() => passo.falhas);
+    }
+
     if (!montado.current) return;
 
-    if (classificacao === 'sucesso') {
-      await zerarFalhas(sessao.uid);
+    if (passo.acao === 'entrar') {
       onDesbloqueado();
       return;
     }
 
-    if (classificacao === 'falha') {
-      falhasRef.current = await registrarFalha(sessao.uid);
+    if (passo.acao === 'encerrar') {
+      onEncerrar(passo.mensagem);
+      return;
     }
 
-    if (!montado.current) return;
-
-    if (passo.acao === 'senha') {
-      encerrar(passo.mensagem);
-    } else {
-      setEtapa('aguardando');
-      setMensagem(passo.mensagem);
-    }
+    setEtapa('aguardando');
+    setMensagem(passo.mensagem);
   }
 
-  // Abre a biometria sozinha UMA vez quando o e-mail corresponde.
-  // Depois de encerrado (senha escolhida, 3 falhas, bloqueio), não reabre.
   useEffect(() => {
-    if (!config || etapa === 'autenticando') return;
+    let ativo = true;
 
-    const decisao = decidirInicioBiometria({
-      emailDigitado: email,
-      sessao,
-      preferencia: config.preferencia,
-      disponivel: config.disponivel,
-      falhas: falhasRef.current,
-    });
+    Promise.all([lerFalhas(usuario.uid), temReconhecimentoFacial()])
+      .then(([falhas, temFacial]) => {
+        if (!ativo) return;
 
-    if (decisao === 'nao_se_aplica') {
-      // Outro e-mail: esconde a biometria. Se o fluxo já foi
-      // encerrado, continua encerrado (não reabre sozinho).
-      if (etapa === 'aguardando') setEtapa('inativo');
-      setMensagem('');
-      return;
-    }
+        falhasRef.current = falhas;
+        setFacial(temFacial);
 
-    if (etapa !== 'inativo') return;
+        // Já esgotou as tentativas (ex.: app fechado no meio): só pela senha.
+        if (falhas >= MAXIMO_FALHAS) {
+          onEncerrar(proximoPasso('falha', MAXIMO_FALHAS - 1).mensagem);
+          return;
+        }
 
-    if (decisao === 'senha_por_falhas') {
-      encerrar(proximoPasso('falha', MAXIMO_FALHAS - 1).mensagem);
-      return;
-    }
+        tentar();
+      })
+      .catch((erro) => {
+        console.log('Configuração de biometria indisponível:', erro);
 
-    if (decisao === 'indisponivel') {
-      encerrar(proximoPasso('indisponivel', falhasRef.current).mensagem);
-      return;
-    }
+        if (ativo) tentar();
+      });
 
-    const espera = setTimeout(tentar, ESPERA_APOS_DIGITAR);
+    return () => {
+      ativo = false;
+    };
+  }, [usuario.uid]);
 
-    return () => clearTimeout(espera);
-  }, [email, config, etapa]);
-
-  if (etapa === 'inativo') {
-    return null;
-  }
-
-  if (etapa === 'encerrado') {
-    return mensagem ? <Text style={styles.aviso}>{mensagem}</Text> : null;
-  }
+  const icone = facial ? 'face-recognition' : 'fingerprint';
 
   return (
-    <View style={styles.caixa}>
-      {etapa === 'autenticando' ? (
+    <View style={styles.container}>
+      <Image
+        source={require('../../assets/icon.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
+
+      <Text style={styles.nomeApp}>Conecta</Text>
+
+      <View style={styles.icone}>
+        <MaterialCommunityIcons name={icone} size={56} color={cores.primaria} />
+      </View>
+
+      <Text style={styles.titulo}>Confirme que é você</Text>
+
+      <Text style={styles.descricao}>
+        {facial
+          ? 'Para proteger sua família, o Conecta pede o reconhecimento facial sempre que você entra.'
+          : 'Para proteger sua família, o Conecta pede a biometria do aparelho sempre que você entra.'}
+      </Text>
+
+      {etapa === 'verificando' ? (
         <View style={styles.linha}>
           <ActivityIndicator color={cores.primaria} />
           <Text style={styles.texto}>Aguardando biometria...</Text>
         </View>
       ) : (
         <>
-          <Text style={styles.texto}>{mensagem}</Text>
+          {mensagem ? <Text style={styles.mensagem}>{mensagem}</Text> : null}
 
           <TouchableOpacity style={styles.botao} onPress={tentar}>
-            <Feather name="unlock" size={16} color={cores.textoSobrePrimaria} />
-            <Text style={styles.botaoTexto}>Tentar biometria novamente</Text>
+            <MaterialCommunityIcons name={icone} size={20} color={cores.textoSobrePrimaria} />
+            <Text style={styles.botaoTexto}>Tentar novamente</Text>
           </TouchableOpacity>
         </>
       )}
 
       <TouchableOpacity
-        style={styles.usarSenha}
-        onPress={() => encerrar('')}
-        disabled={etapa === 'autenticando'}
+        style={styles.sair}
+        onPress={() => onEncerrar('')}
+        disabled={etapa === 'verificando'}
       >
-        <Text style={styles.usarSenhaTexto}>Usar senha</Text>
+        <Text style={[styles.sairTexto, etapa === 'verificando' && styles.desabilitado]}>
+          Sair da conta
+        </Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  caixa: {
-    padding: 14,
-    marginBottom: 16,
-    borderRadius: raio.card,
-    borderWidth: 1,
-    borderColor: cores.borda,
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+    backgroundColor: cores.fundo,
+  },
+
+  logo: {
+    width: 75,
+    height: 75,
+    marginBottom: 2,
+  },
+
+  nomeApp: {
+    fontSize: 27,
+    fontFamily: fontes.titulo,
+    color: cores.primaria,
+    marginBottom: 28,
+  },
+
+  icone: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: cores.superficieAlternativa,
-    gap: 10,
+    marginBottom: 20,
+  },
+
+  titulo: {
+    fontSize: 24,
+    fontFamily: fontes.titulo,
+    color: cores.texto,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+
+  descricao: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: cores.textoSecundario,
+    textAlign: 'center',
+    marginBottom: 28,
   },
 
   linha: {
@@ -198,45 +211,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
+    paddingVertical: 16,
   },
 
   texto: {
-    fontSize: 14,
+    fontSize: 15,
     color: cores.texto,
-    textAlign: 'center',
   },
 
-  aviso: {
+  mensagem: {
     fontSize: 14,
-    color: cores.texto,
+    lineHeight: 20,
+    color: cores.erro,
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
 
   botao: {
+    width: '100%',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderRadius: raio.pilula,
     backgroundColor: cores.primaria,
   },
 
   botaoTexto: {
     color: cores.textoSobrePrimaria,
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: fontes.destaque,
   },
 
-  usarSenha: {
+  sair: {
     alignItems: 'center',
-    paddingVertical: 4,
+    marginTop: 18,
+    padding: 8,
   },
 
-  usarSenhaTexto: {
+  sairTexto: {
     color: cores.primaria,
     fontSize: 15,
     fontFamily: fontes.destaque,
+  },
+
+  desabilitado: {
+    opacity: 0.5,
   },
 });

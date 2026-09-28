@@ -13,12 +13,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import {
-  biometriaDisponivel,
-  lerPreferencia,
-  PREFERENCIA,
-  salvarPreferencia,
-} from '../dados/biometria';
+import { biometriaDisponivel } from '../dados/biometria';
 import EditarInformacoes from './EditarInformacoes';
 import MeusLugares from '../lugares/MeusLugares';
 import { cores, fontes } from '../theme/theme';
@@ -121,7 +116,7 @@ export default function Configuracoes({
     useState(false);
 
   // null = carregando
-  const [biometria, setBiometria] = useState(null);
+  const [biometriaOk, setBiometriaOk] = useState(null);
 
   const chaveNotificacoes = usuario?.uid
     ? `@appintegrado:notificacoes:${usuario.uid}`
@@ -223,47 +218,9 @@ export default function Configuracoes({
 
   async function abrirSeguranca() {
     setSegurancaAberta(true);
-    setBiometria(null);
+    setBiometriaOk(null);
 
-    try {
-      const [disponivel, preferencia] = await Promise.all([
-        biometriaDisponivel(),
-        lerPreferencia(usuario.uid),
-      ]);
-
-      setBiometria({
-        disponivel,
-        ativada: preferencia === PREFERENCIA.ATIVADA,
-      });
-    } catch (error) {
-      console.error(
-        'Erro ao carregar configuração de biometria:',
-        error
-      );
-
-      setBiometria({ disponivel: false, ativada: false });
-    }
-  }
-
-  async function alternarBiometria(ativar) {
-    try {
-      await salvarPreferencia(
-        usuario.uid,
-        ativar ? PREFERENCIA.ATIVADA : PREFERENCIA.RECUSADA
-      );
-
-      setBiometria((atual) => ({ ...atual, ativada: ativar }));
-    } catch (error) {
-      console.error(
-        'Erro ao salvar configuração de biometria:',
-        error
-      );
-
-      Alert.alert(
-        'Erro',
-        'Não foi possível salvar a configuração. Tente novamente.'
-      );
-    }
+    setBiometriaOk(await biometriaDisponivel());
   }
 
   function voltarConfiguracoes() {
@@ -330,14 +287,14 @@ export default function Configuracoes({
           Segurança
         </Text>
 
-        {biometria === null ? (
+        {biometriaOk === null ? (
           <ActivityIndicator color={cores.primaria} />
         ) : (
           <>
             <View style={styles.notificacao}>
               <View style={styles.notificacaoIcone}>
                 <Feather
-                  name="unlock"
+                  name="lock"
                   size={19}
                   color={cores.primaria}
                 />
@@ -345,39 +302,37 @@ export default function Configuracoes({
 
               <View style={styles.notificacaoConteudo}>
                 <Text style={styles.notificacaoTitulo}>
-                  Acesso rápido por biometria
+                  Reconhecimento facial obrigatório
                 </Text>
 
                 <Text style={styles.notificacaoDescricao}>
-                  No login, informe seu e-mail e a biometria do
-                  aparelho abre sozinha. Depois de 3 falhas, a
-                  senha é pedida.
+                  Sempre que você abre o Conecta ou volta para
+                  ele, o reconhecimento facial é pedido. Depois
+                  de 3 falhas, é preciso entrar com e-mail e
+                  senha.
                 </Text>
               </View>
 
-              <Switch
-                value={biometria.ativada}
-                onValueChange={alternarBiometria}
-                disabled={!biometria.disponivel && !biometria.ativada}
-                trackColor={{
-                  false: cores.borda,
-                  true: cores.primaria,
-                }}
-                thumbColor={cores.superficie}
+              <Feather
+                name={biometriaOk ? 'check-circle' : 'alert-circle'}
+                size={20}
+                color={biometriaOk ? cores.online : cores.erro}
               />
             </View>
 
-            {!biometria.disponivel && (
+            {!biometriaOk && (
               <Text style={styles.aviso}>
                 Este aparelho não tem biometria cadastrada.
-                Cadastre uma digital ou rosto nas configurações
-                do aparelho para usar o acesso rápido.
+                Cadastre seu rosto (ou outra biometria) nas
+                configurações do aparelho: sem ela não é
+                possível entrar no Conecta.
               </Text>
             )}
 
             <Text style={styles.aviso}>
               Ao tocar em "Sair do aplicativo", a próxima
-              entrada sempre pede e-mail e senha.
+              entrada pede e-mail, senha e reconhecimento
+              facial.
             </Text>
           </>
         )}
