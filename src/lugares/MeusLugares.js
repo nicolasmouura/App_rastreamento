@@ -35,9 +35,9 @@ export default function MeusLugares({ usuario, posicaoAtual, onVoltar }) {
   }, [usuario.uid]);
 
   async function salvar(dados) {
-    await salvarLugar(usuario.uid, editando.id, dados);
+    const salvo = await salvarLugar(usuario.uid, editando.id, dados);
 
-    setLugares((atuais) => ({ ...atuais, [editando.id]: { id: editando.id, ...dados } }));
+    setLugares((atuais) => ({ ...atuais, [editando.id]: salvo }));
     setEditando(null);
     Alert.alert('Lugar salvo', `${editando.nome} atualizada com sucesso.`);
   }
@@ -62,9 +62,14 @@ export default function MeusLugares({ usuario, posicaoAtual, onVoltar }) {
         TIPOS_LUGAR.map((tipo) => {
           const lugar = lugares[tipo.id];
 
+          // Salvo antes dos campos separados: a posição pode ser a
+          // de onde a pessoa estava, não a do endereço.
+          const incompleto = Boolean(lugar) && !lugar.enderecoDetalhado;
+
           let descricao = lugar?.endereco;
           if (!lugar && tipo.obrigatorio) descricao = 'Não cadastrada · obrigatória';
           if (!lugar && tipo.emBreve) descricao = 'Em breve';
+          if (incompleto) descricao = 'Endereço incompleto · toque em Editar para atualizar';
 
           return (
             <View key={tipo.id} style={[styles.item, tipo.emBreve && styles.itemEmBreve]}>
@@ -75,7 +80,10 @@ export default function MeusLugares({ usuario, posicaoAtual, onVoltar }) {
               <View style={styles.itemTextos}>
                 <Text style={styles.itemNome}>{tipo.nome}</Text>
                 <Text
-                  style={[styles.itemDescricao, !lugar && tipo.obrigatorio && styles.pendente]}
+                  style={[
+                    styles.itemDescricao,
+                    ((!lugar && tipo.obrigatorio) || incompleto) && styles.pendente,
+                  ]}
                   numberOfLines={2}
                 >
                   {descricao}

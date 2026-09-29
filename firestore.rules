@@ -149,16 +149,37 @@ service cloud.firestore {
     }
 
     // Meus lugares (usuarios/{uid}/lugares/{lugarId}): PRIVADOS.
+    function textoObrigatorio(valor, limite) {
+      return valor is string && valor.size() > 0 && valor.size() <= limite;
+    }
+
+    // Endereço em partes (mesmos limites de enderecos.js/CAMPOS_ENDERECO).
+    function enderecoDetalhadoValido(e) {
+      let campos = ['pais', 'estado', 'cidade', 'bairro', 'rua', 'numero', 'cep'];
+      return e is map
+        && e.keys().hasAll(campos)
+        && e.keys().hasOnly(campos)
+        && textoObrigatorio(e.pais, 40)
+        && textoObrigatorio(e.estado, 40)
+        && textoObrigatorio(e.cidade, 60)
+        && textoObrigatorio(e.bairro, 60)
+        && textoObrigatorio(e.rua, 100)
+        && textoObrigatorio(e.numero, 15)
+        && textoObrigatorio(e.cep, 10);
+    }
+
     function lugarValido(userId, lugarId) {
       let dados = request.resource.data;
+      let campos = ['tipo', 'nome', 'endereco', 'enderecoDetalhado', 'latitude', 'longitude', 'atualizadoEm'];
       return autenticado()
         && meuUid() == userId
         && lugarId.matches('^(casa|trabalho|escola|outro_[a-z0-9]{1,20})$')
-        && dados.keys().hasAll(['tipo', 'nome', 'endereco', 'latitude', 'longitude', 'atualizadoEm'])
-        && dados.keys().hasOnly(['tipo', 'nome', 'endereco', 'latitude', 'longitude', 'atualizadoEm'])
+        && dados.keys().hasAll(campos)
+        && dados.keys().hasOnly(campos)
         && dados.tipo == (lugarId.matches('^outro_.*') ? 'outro' : lugarId)
         && dados.nome is string && dados.nome.size() > 0 && dados.nome.size() <= 40
-        && dados.endereco is string && dados.endereco.size() > 0 && dados.endereco.size() <= 200
+        && textoObrigatorio(dados.endereco, 400)
+        && enderecoDetalhadoValido(dados.enderecoDetalhado)
         && dados.latitude is number && dados.latitude >= -90 && dados.latitude <= 90
         && dados.longitude is number && dados.longitude >= -180 && dados.longitude <= 180
         && dados.atualizadoEm == request.time;

@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,109 +15,195 @@ import { Feather } from '@expo/vector-icons';
 import MapView, { Marker } from 'react-native-maps';
 
 import {
-  buscarCoordenadas,
   buscarEndereco,
-  formatarEnderecoCompleto,
+  ehBrasil,
+  ENDERECO_VAZIO,
+  enderecoDoResultado,
+  formatarCEP,
+  limparEndereco,
+  localizarEndereco,
+  validarEndereco,
 } from '../dados/enderecos';
 import { cores, fontes, raio } from '../theme/theme';
 
 const ZOOM_LUGAR = { latitudeDelta: 0.004, longitudeDelta: 0.004 };
+const ZOOM_CIDADE = { latitudeDelta: 0.05, longitudeDelta: 0.05 };
+const REGIAO_BRASIL = {
+  latitude: -14.235,
+  longitude: -51.9253,
+  latitudeDelta: 30,
+  longitudeDelta: 30,
+};
+
+// Identifica o endereço que o alfinete representa.
+function chaveEndereco(campos) {
+  return JSON.stringify(limparEndereco(campos));
+}
+
+function Campo({ label, style, ...props }) {
+  return (
+    <View style={[styles.campo, style]}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        style={styles.input}
+        placeholderTextColor={cores.textoSecundario}
+        {...props}
+      />
+    </View>
+  );
+}
 
 /*
- * Cadastrar/editar um lugar (Casa): mapa com alfinete arrastável,
- * busca de endereço e endereço editável. Tudo com expo-location
- * (já instalado) e react-native-maps.
+ * Cadastrar/editar um lugar (Casa). A posição vem do endereço
+ * DIGITADO (País, Estado, Cidade, Bairro, Rua, Número e CEP):
+ * "Localizar no mapa" busca as coordenadas e põe o alfinete lá, e só
+ * então dá para salvar. O alfinete pode ser arrastado para ajustar.
+ * Mudou o endereço → precisa localizar de novo.
  */
 export default function EditarLugar({ tipo, lugar, posicaoAtual, onFechar, onSalvar }) {
   const mapaRef = useRef(null);
 
-  const inicial = lugar
-    ? { latitude: lugar.latitude, longitude: lugar.longitude }
-    : posicaoAtual
-    ? { latitude: posicaoAtual.latitude, longitude: posicaoAtual.longitude }
-    : null;
+  // Lugar salvo antes dos campos separados: posição não confiável.
+  const salvoCompleto = Boolean(lugar?.enderecoDetalhado);
+  const camposIniciais = salvoCompleto
+    ? { ...ENDERECO_VAZIO, ...lugar.enderecoDetalhado }
+    : ENDERECO_VAZIO;
 
-  const [pino, setPino] = useState(inicial);
-  const [endereco, setEndereco] = useState(lugar?.endereco || '');
-  const [busca, setBusca] = useState('');
+  const [campos, setCampos] = useState(camposIniciais);
+  const [pino, setPino] = useState(
+    salvoCompleto ? { latitude: lugar.latitude, longitude: lugar.longitude } : null
+  );
+  const [localizadoPara, setLocalizadoPara] = useState(
+    salvoCompleto ? chaveEndereco(camposIniciais) : null
+  );
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState('');
 
-  async function preencherEndereco(coordenadas) {
-    const resultado = await buscarEndereco(coordenadas);
-    const texto = formatarEnderecoCompleto(resultado);
+  const localizado = pino !== null && localizadoPara === chaveEndereco(campos);
+  const brasil = ehBrasil(campos.pais);
 
-    if (texto) setEndereco(texto);
-  }
+  const [regiaoInicial] = useState(() => {
+    if (pino) return { ...pino, ...ZOOM_LUGAR };
+    if (posicaoAtual) {
+      return { latitude: posicaoAtual.latitude, longitude: posicaoAtual.longitude, ...ZOOM_CIDADE };
+    }
+    return REGIAO_BRASIL;
+  });
 
-  // Novo lugar a partir da minha posição: sugere o endereço.
-  useEffect(() => {
-    if (!lugar && pino) preencherEndereco(pino);
-  }, []);
-
-  function moverPino(coordenadas) {
-    setPino(coordenadas);
+  function alterar(chave, valor) {
+    setCampos((atual) => ({
+      ...atual,
+      [chave]: chave === 'cep' && ehBrasil(atual.pais) ? formatarCEP(valor) : valor,
+    }));
     setErro('');
-    preencherEndereco(coordenadas);
   }
 
   function centralizar(coordenadas) {
     mapaRef.current?.animateToRegion({ ...coordenadas, ...ZOOM_LUGAR }, 600);
   }
 
-  async function pesquisar() {
-    if (!busca.trim()) return;
+  // Ajuste fino: só depois que o endereço já foi localizado.
+  function moverPino(coordenadas) {
+    if (!pino) return;
+
+    setPino(coordenadas);
+    setErro('');
+  }
+
+  async function localizar() {
+    const problema = validarEndereco(campos);
+
+    if (problema) {
+      setErro(problema);
+      return;
+    }
+
+    const alvo = campos;
 
     setOcupado(true);
     setErro('');
 
-    const encontrado = await buscarCoordenadas(busca);
+    const encontrado = await localizarEndereco(alvo);
 
     setOcupado(false);
 
     if (!encontrado) {
-      setErro('Endereço não encontrado. Tente com rua, número e cidade.');
+      setErro('Não encontramos esse endereço. Confira rua, número, cidade e CEP.');
       return;
     }
 
     setPino(encontrado);
-    setEndereco(busca.trim());
+    setLocalizadoPara(chaveEndereco(alvo));
     centralizar(encontrado);
   }
 
-  function usarMinhaLocalizacao() {
+  // "Estou em casa agora": preenche os campos pelo GPS.
+  async function usarMinhaLocalizacao() {
     if (!posicaoAtual) {
       setErro('Sua localização atual não está disponível.');
       return;
     }
 
-    const coordenadas = { latitude: posicaoAtual.latitude, longitude: posicaoAtual.longitude };
+    const coordenadas = {
+      latitude: posicaoAtual.latitude,
+      longitude: posicaoAtual.longitude,
+    };
 
-    moverPino(coordenadas);
+    setOcupado(true);
+    setErro('');
+
+    const preenchido = enderecoDoResultado(await buscarEndereco(coordenadas));
+
+    setOcupado(false);
+
+    // Mantém o que o GPS não souber (ex.: número da casa).
+    const novos = { ...campos };
+
+    for (const [chave, valor] of Object.entries(preenchido || {})) {
+      if (valor) novos[chave] = valor;
+    }
+
+    setCampos(novos);
+    setPino(coordenadas);
+    setLocalizadoPara(chaveEndereco(novos));
     centralizar(coordenadas);
+
+    if (validarEndereco(novos)) {
+      setErro('Confira o endereço e complete os campos que faltam.');
+    }
   }
 
   async function salvar() {
-    if (!pino) {
-      setErro('Marque no mapa onde fica o lugar.');
-      return;
-    }
+    const problema = validarEndereco(campos);
 
-    if (!endereco.trim()) {
-      setErro('Informe o endereço.');
+    if (problema) {
+      setErro(problema);
       return;
     }
 
     try {
       setOcupado(true);
       setErro('');
-      await onSalvar({ endereco, latitude: pino.latitude, longitude: pino.longitude });
+      await onSalvar({
+        enderecoDetalhado: limparEndereco(campos),
+        latitude: pino.latitude,
+        longitude: pino.longitude,
+      });
     } catch (e) {
       console.log('Lugar não salvo:', e.code || e.message);
       setErro('Não foi possível salvar. Tente novamente.');
       setOcupado(false);
     }
   }
+
+  let dica = 'Preencha o endereço e toque em "Localizar no mapa".';
+  if (localizado) {
+    dica = `Confira se o alfinete está na ${tipo.nome.toLowerCase()}. Se precisar, arraste-o para ajustar.`;
+  } else if (pino) {
+    dica = 'Você mudou o endereço. Toque em "Localizar no mapa" de novo.';
+  }
+
+  const nome = tipo.nome.toLowerCase();
 
   return (
     <Modal visible animationType="slide" onRequestClose={onFechar}>
@@ -132,27 +219,11 @@ export default function EditarLugar({ tipo, lugar, posicaoAtual, onFechar, onSal
           <Text style={styles.titulo}>{lugar ? `Editar ${tipo.nome}` : `Cadastrar ${tipo.nome}`}</Text>
         </View>
 
-        <View style={styles.busca}>
-          <TextInput
-            style={styles.buscaInput}
-            placeholder="Buscar endereço (rua, número, cidade)"
-            placeholderTextColor={cores.textoSecundario}
-            value={busca}
-            onChangeText={setBusca}
-            onSubmitEditing={pesquisar}
-            returnKeyType="search"
-          />
-
-          <TouchableOpacity style={styles.buscaBotao} onPress={pesquisar} disabled={ocupado}>
-            <Feather name="search" size={18} color={cores.textoSobrePrimaria} />
-          </TouchableOpacity>
-        </View>
-
         <View style={styles.mapaArea}>
           <MapView
             ref={mapaRef}
             style={styles.mapa}
-            initialRegion={inicial ? { ...inicial, ...ZOOM_LUGAR } : undefined}
+            initialRegion={regiaoInicial}
             onPress={(evento) => moverPino(evento.nativeEvent.coordinate)}
           >
             {pino && (
@@ -160,30 +231,106 @@ export default function EditarLugar({ tipo, lugar, posicaoAtual, onFechar, onSal
                 coordinate={pino}
                 draggable
                 onDragEnd={(evento) => moverPino(evento.nativeEvent.coordinate)}
-                pinColor={cores.primaria}
+                pinColor={localizado ? cores.primaria : cores.textoSecundario}
               />
             )}
           </MapView>
-
-          <TouchableOpacity style={styles.minhaPosicao} onPress={usarMinhaLocalizacao}>
-            <Feather name="crosshair" size={16} color={cores.primaria} />
-            <Text style={styles.minhaPosicaoTexto}>Usar minha localização</Text>
-          </TouchableOpacity>
         </View>
 
-        <View style={styles.rodape}>
-          <Text style={styles.dica}>
-            Toque no mapa ou arraste o alfinete até a {tipo.nome.toLowerCase()}.
-          </Text>
+        <Text style={[styles.dica, localizado && styles.dicaOk]}>{dica}</Text>
 
-          <Text style={styles.label}>Endereço</Text>
-          <TextInput
-            style={styles.input}
-            value={endereco}
-            onChangeText={setEndereco}
-            placeholder="Rua, número, bairro, cidade"
-            placeholderTextColor={cores.textoSecundario}
-            maxLength={200}
+        <ScrollView
+          contentContainerStyle={styles.formulario}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {lugar && !salvoCompleto ? (
+            <Text style={styles.aviso}>
+              Endereço salvo antes: {lugar.endereco}. Preencha os campos abaixo
+              para atualizar a posição.
+            </Text>
+          ) : null}
+
+          <TouchableOpacity
+            style={styles.minhaPosicao}
+            onPress={usarMinhaLocalizacao}
+            disabled={ocupado}
+          >
+            <Feather name="crosshair" size={16} color={cores.primaria} />
+            <Text style={styles.minhaPosicaoTexto}>
+              {tipo.id === 'casa' ? 'Estou em casa agora' : 'Estou lá agora'}: usar minha localização
+            </Text>
+          </TouchableOpacity>
+
+          <Campo
+            label="País"
+            value={campos.pais}
+            onChangeText={(valor) => alterar('pais', valor)}
+            placeholder="Brasil"
+            autoCapitalize="words"
+            maxLength={40}
+          />
+
+          <View style={styles.linha}>
+            <Campo
+              label="Estado"
+              style={styles.metade}
+              value={campos.estado}
+              onChangeText={(valor) => alterar('estado', valor)}
+              placeholder="RJ"
+              autoCapitalize="words"
+              maxLength={40}
+            />
+
+            <Campo
+              label="Cidade"
+              style={styles.dobro}
+              value={campos.cidade}
+              onChangeText={(valor) => alterar('cidade', valor)}
+              placeholder="Rio de Janeiro"
+              autoCapitalize="words"
+              maxLength={60}
+            />
+          </View>
+
+          <Campo
+            label="Bairro"
+            value={campos.bairro}
+            onChangeText={(valor) => alterar('bairro', valor)}
+            placeholder="Copacabana"
+            autoCapitalize="words"
+            maxLength={60}
+          />
+
+          <View style={styles.linha}>
+            <Campo
+              label="Rua"
+              style={styles.triplo}
+              value={campos.rua}
+              onChangeText={(valor) => alterar('rua', valor)}
+              placeholder="Rua Barata Ribeiro"
+              autoCapitalize="words"
+              maxLength={100}
+            />
+
+            <Campo
+              label="Número"
+              style={styles.metade}
+              value={campos.numero}
+              onChangeText={(valor) => alterar('numero', valor)}
+              placeholder="123"
+              maxLength={15}
+            />
+          </View>
+
+          <Campo
+            label="CEP"
+            value={campos.cep}
+            onChangeText={(valor) => alterar('cep', valor)}
+            placeholder={brasil ? '00000-000' : 'Código postal'}
+            keyboardType={brasil ? 'number-pad' : 'default'}
+            autoCapitalize="characters"
+            maxLength={brasil ? 9 : 10}
           />
 
           <Text style={styles.privacidade}>
@@ -195,16 +342,25 @@ export default function EditarLugar({ tipo, lugar, posicaoAtual, onFechar, onSal
 
           <TouchableOpacity
             style={[styles.botao, ocupado && styles.botaoDesabilitado]}
-            onPress={salvar}
+            onPress={localizado ? salvar : localizar}
             disabled={ocupado}
           >
             {ocupado ? (
               <ActivityIndicator color={cores.textoSobrePrimaria} />
             ) : (
-              <Text style={styles.botaoTexto}>Salvar {tipo.nome.toLowerCase()}</Text>
+              <>
+                <Feather
+                  name={localizado ? 'check' : 'map-pin'}
+                  size={18}
+                  color={cores.textoSobrePrimaria}
+                />
+                <Text style={styles.botaoTexto}>
+                  {localizado ? `Salvar ${nome}` : 'Localizar no mapa'}
+                </Text>
+              </>
             )}
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -235,52 +391,43 @@ const styles = StyleSheet.create({
     color: cores.texto,
   },
 
-  busca: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-
-  buscaInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: cores.borda,
-    borderRadius: raio.botaoSecundario + 4,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    backgroundColor: cores.superficie,
-    color: cores.texto,
-  },
-
-  buscaBotao: {
-    width: 46,
-    borderRadius: raio.botaoSecundario + 4,
-    backgroundColor: cores.primaria,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
   mapaArea: {
-    flex: 1,
+    height: 200,
   },
 
   mapa: {
     flex: 1,
   },
 
+  dica: {
+    fontSize: 12,
+    color: cores.textoSecundario,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+
+  dicaOk: {
+    color: cores.online,
+  },
+
+  formulario: {
+    padding: 16,
+    paddingTop: 10,
+    gap: 10,
+  },
+
+  aviso: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: cores.pendente,
+  },
+
   minhaPosicao: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: raio.pilula,
-    backgroundColor: cores.superficie,
+    paddingVertical: 4,
   },
 
   minhaPosicaoTexto: {
@@ -289,21 +436,31 @@ const styles = StyleSheet.create({
     color: cores.primaria,
   },
 
-  rodape: {
-    padding: 16,
-    gap: 6,
+  linha: {
+    flexDirection: 'row',
+    gap: 10,
   },
 
-  dica: {
-    fontSize: 12,
-    color: cores.textoSecundario,
+  campo: {
+    gap: 4,
+  },
+
+  metade: {
+    flex: 1,
+  },
+
+  dobro: {
+    flex: 2,
+  },
+
+  triplo: {
+    flex: 3,
   },
 
   label: {
     fontSize: 14,
     fontFamily: fontes.destaque,
     color: cores.texto,
-    marginTop: 6,
   },
 
   input: {
@@ -327,7 +484,10 @@ const styles = StyleSheet.create({
   },
 
   botao: {
-    marginTop: 6,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 4,
     padding: 15,
     borderRadius: raio.pilula,
     backgroundColor: cores.primaria,

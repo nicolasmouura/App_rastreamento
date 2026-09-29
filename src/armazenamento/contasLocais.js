@@ -140,12 +140,16 @@ export async function signInWithEmailAndPassword(_auth, email, senha) {
   if (!senha) throw erroAuth('auth/missing-password');
 
   const conta = (await lerContas())[emailNormalizado];
-  const senhaSalva = conta
-    ? await SecureStore.getItemAsync(chaveSenha(conta.uid))
-    : null;
 
-  // Como no Firebase: não diz se o erro foi o e-mail ou a senha.
-  if (!conta || senhaSalva === null || senhaSalva !== senha) {
+  // As contas ficam só neste aparelho: avisa quando o e-mail não tem
+  // conta aqui (ex.: conta criada quando o app usava o Firebase).
+  if (!conta) {
+    throw erroAuth('auth/user-not-found');
+  }
+
+  const senhaSalva = await SecureStore.getItemAsync(chaveSenha(conta.uid));
+
+  if (senhaSalva === null || senhaSalva !== senha) {
     throw erroAuth('auth/invalid-credential');
   }
 

@@ -9,6 +9,7 @@ import {
 
 import { db } from '../config/armazenamento';
 import { coordenadaValida, distanciaEmMetros } from './buscarFamiliares';
+import { formatarEndereco, limparEndereco, validarEndereco } from './enderecos';
 
 /*
  * Meus lugares: usuarios/{uid}/lugares/{lugarId} — PRIVADO.
@@ -53,21 +54,36 @@ export function observarLugar(uid, lugarId, callback, onErro) {
   );
 }
 
-export async function salvarLugar(uid, lugarId, { endereco, latitude, longitude }) {
+/*
+ * enderecoDetalhado: { pais, estado, cidade, bairro, rua, numero, cep },
+ * todos obrigatórios. latitude/longitude: posição localizada a partir
+ * desse endereço (EditarLugar), não a posição atual do aparelho.
+ * "endereco" guarda o mesmo endereço em uma linha, para exibir.
+ */
+export async function salvarLugar(uid, lugarId, { enderecoDetalhado, latitude, longitude }) {
   const tipo = TIPOS_LUGAR.find((item) => item.id === lugarId);
 
   if (!tipo) throw new Error('LUGAR_INVALIDO');
   if (!coordenadaValida(latitude, longitude)) throw new Error('COORDENADA_INVALIDA');
-  if (!endereco || !endereco.trim()) throw new Error('ENDERECO_OBRIGATORIO');
+  if (validarEndereco(enderecoDetalhado)) throw new Error('ENDERECO_INCOMPLETO');
 
-  await setDoc(referenciaLugar(uid, lugarId), {
+  const partes = limparEndereco(enderecoDetalhado);
+
+  const lugar = {
     tipo: tipo.id,
     nome: tipo.nome,
-    endereco: endereco.trim().slice(0, 200),
+    endereco: formatarEndereco(partes),
+    enderecoDetalhado: partes,
     latitude,
     longitude,
+  };
+
+  await setDoc(referenciaLugar(uid, lugarId), {
+    ...lugar,
     atualizadoEm: serverTimestamp(),
   });
+
+  return { id: lugarId, ...lugar };
 }
 
 /*

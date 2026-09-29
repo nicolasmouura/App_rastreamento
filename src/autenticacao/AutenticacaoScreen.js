@@ -109,7 +109,13 @@ export default function AutenticacaoScreen({ onAutenticado, aviso }) {
         onAutenticado(resultado.user);
       }
     } catch (e) {
-      console.error('Erro na autenticação:', e);
+      // Senha errada, e-mail já usado etc. são respostas esperadas,
+      // não falhas do app: não abrem a caixa vermelha de erro.
+      if (e.code?.startsWith('auth/')) {
+        console.log('Autenticação recusada:', e.code);
+      } else {
+        console.error('Erro na autenticação:', e);
+      }
 
       if (e.code === 'auth/email-already-in-use') {
         setErro('Este e-mail já possui uma conta.');
@@ -122,6 +128,8 @@ export default function AutenticacaoScreen({ onAutenticado, aviso }) {
         e.code === 'auth/wrong-password'
       ) {
         setErro('E-mail ou senha incorretos.');
+      } else if (e.code === 'auth/user-not-found') {
+        setErro('Não há conta com este e-mail neste aparelho. Volte e toque em "Se cadastrar".');
       } else if (e.code === 'auth/too-many-requests') {
         setErro('Muitas tentativas. Aguarde alguns minutos e tente novamente.');
       } else if (e.code === 'auth/network-request-failed') {
