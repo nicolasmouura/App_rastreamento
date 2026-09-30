@@ -41,6 +41,7 @@ import VerificaBiometria from './src/biometria/VerificaBiometria';
 import { garantirEntradaDiretorio } from './src/dados/salvarUsuario';
 import GrupoScreen from './src/grupo/GrupoScreen';
 import { useCompartilharLocalizacao } from './src/mapa/compartilharLocalizacao';
+import { useNotificacoes } from './src/notificacoes/useNotificacoes';
 
 import {
   cores,
@@ -224,6 +225,9 @@ export default function App() {
     perfil,
     temGrupo ? grupoId : null
   );
+
+  // Avisos no aparelho (Configurações → Notificações).
+  useNotificacoes(perfil, temGrupo ? grupoId : null);
 
   if (!fontsLoaded) {
     return null;

@@ -69,7 +69,8 @@ service cloud.firestore {
       return (!('nome' in dados) || nomeValido(dados.nome))
         && textoOpcional(dados, 'telefone', 20)
         && textoOpcional(dados, 'documento', 20)
-        && textoOpcional(dados, 'endereco', 120)
+        && textoOpcional(dados, 'endereco', 400)
+        && (!('enderecoDetalhado' in dados) || enderecoDetalhadoValido(dados.enderecoDetalhado))
         && textoOpcional(dados, 'atualizadoEm', 40)
         && fotoValida(dados);
     }
@@ -307,7 +308,7 @@ service cloud.firestore {
 
       allow create: if autenticado()
         && meuUid() == userId
-        && request.resource.data.keys().hasOnly(['nome', 'email', 'uid', 'criadoEm', 'grupoId', 'telefone', 'documento', 'endereco', 'atualizadoEm', 'foto'])
+        && request.resource.data.keys().hasOnly(['nome', 'email', 'uid', 'criadoEm', 'grupoId', 'telefone', 'documento', 'endereco', 'enderecoDetalhado', 'atualizadoEm', 'foto'])
         && request.resource.data.get('uid', userId) == userId
         && (!('email' in request.resource.data) || request.resource.data.email.lower() == meuEmail())
         && dadosPessoaisValidos(request.resource.data)
@@ -318,7 +319,7 @@ service cloud.firestore {
       // depois de preenchido. grupoId só muda pelo fluxo de família/convite.
       allow update: if autenticado()
         && meuUid() == userId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'telefone', 'documento', 'endereco', 'atualizadoEm', 'grupoId', 'foto'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'telefone', 'documento', 'endereco', 'enderecoDetalhado', 'atualizadoEm', 'grupoId', 'foto'])
         && dadosPessoaisValidos(request.resource.data)
         && documentoImutavel()
         && vinculoDeFamiliaValido(resource.data.get('grupoId', null));

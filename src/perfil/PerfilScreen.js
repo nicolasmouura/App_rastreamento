@@ -100,6 +100,16 @@ export default function PerfilScreen({
     return salvos;
   }
 
+  // Casa salva (Meus lugares ou Editar informações): o endereço do
+  // perfil foi gravado junto (lugares.salvarLugar).
+  function aplicarCasa({ endereco, enderecoDetalhado }) {
+    setDadosPerfil((atual) => ({
+      ...atual,
+      endereco,
+      enderecoDetalhado,
+    }));
+  }
+
   /*
    * A foto vira uma miniatura (fotoPerfil.gerarMiniatura) e é salva em
    * usuarios/{uid}.foto: aparece em qualquer aparelho e para a família.
@@ -307,6 +317,7 @@ export default function PerfilScreen({
             usuario={usuario}
             perfil={dadosPerfil}
             onSalvarPerfil={salvarPerfil}
+            onCasaSalva={aplicarCasa}
             posicaoAtual={posicaoAtual}
             onSair={
               sairDoAplicativo

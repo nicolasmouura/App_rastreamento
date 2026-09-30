@@ -14,7 +14,8 @@ import { buscarLugares, salvarLugar, TIPOS_LUGAR } from '../dados/lugares';
 import { cores, fontes, raio } from '../theme/theme';
 
 // Configurações → Meus lugares. Nesta etapa: Casa (obrigatória).
-export default function MeusLugares({ usuario, posicaoAtual, onVoltar }) {
+// Salvar a Casa também muda o endereço do perfil (onCasaSalva).
+export default function MeusLugares({ usuario, posicaoAtual, onCasaSalva, onVoltar }) {
   const [lugares, setLugares] = useState(null);
   const [editando, setEditando] = useState(null);
   const [erro, setErro] = useState('');
@@ -38,6 +39,7 @@ export default function MeusLugares({ usuario, posicaoAtual, onVoltar }) {
     const salvo = await salvarLugar(usuario.uid, editando.id, dados);
 
     setLugares((atuais) => ({ ...atuais, [editando.id]: salvo }));
+    if (editando.id === 'casa') onCasaSalva?.(salvo);
     setEditando(null);
     Alert.alert('Lugar salvo', `${editando.nome} atualizada com sucesso.`);
   }
@@ -51,8 +53,9 @@ export default function MeusLugares({ usuario, posicaoAtual, onVoltar }) {
 
       <Text style={styles.titulo}>Meus lugares</Text>
       <Text style={styles.subtitulo}>
-        Seus lugares são privados. A família vê apenas se você está em casa
-        ou a distância aproximada até ela.
+        A posição dos seus lugares é privada: a família vê apenas se você
+        está em casa ou a distância aproximada até ela. O endereço da casa é
+        o mesmo do seu perfil.
       </Text>
 
       {lugares === null && !erro && <ActivityIndicator color={cores.primaria} />}

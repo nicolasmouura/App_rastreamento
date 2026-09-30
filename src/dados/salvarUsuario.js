@@ -3,11 +3,12 @@ import { doc, getDoc, setDoc, writeBatch } from '../armazenamento/bancoLocal';
 import { auth, db } from '../config/armazenamento';
 
 // Limites também conferidos no firestore.rules.
+// endereco: a linha montada a partir da Casa (lugares.salvarLugar).
 export const LIMITES_PERFIL = {
   nome: 60,
   telefone: 20,
   documento: 20,
-  endereco: 120,
+  endereco: 400,
 };
 
 /*
@@ -103,7 +104,8 @@ export async function salvarPerfilUsuario(usuario) {
 /*
  * usuarios/{uid} é a fonte principal dos dados pessoais.
  * Usuários antigos podem não ter telefone, documento ou
- * endereço: esses campos voltam como texto vazio.
+ * endereço: esses campos voltam como texto vazio. Endereço
+ * digitado antes dos campos separados não tem enderecoDetalhado.
  */
 function normalizarPerfil(uid, dados = {}) {
   return {
@@ -114,6 +116,7 @@ function normalizarPerfil(uid, dados = {}) {
     telefone: dados.telefone || '',
     documento: dados.documento || '',
     endereco: dados.endereco || '',
+    enderecoDetalhado: dados.enderecoDetalhado || null,
   };
 }
 
@@ -239,15 +242,15 @@ export function validarCadastro({ nome, email, cpf, telefone, endereco, senha, c
 }
 
 /*
- * O que "Editar informações" pode enviar: nome, telefone e endereço.
- * E-mail nunca. CPF só quando a conta ainda não tem nenhum
- * (contas antigas), e nunca para substituir um já cadastrado.
+ * O que "Salvar alterações" pode enviar: nome e telefone. O endereço
+ * é salvo junto com a Casa (lugares.salvarLugar). E-mail nunca. CPF
+ * só quando a conta ainda não tem nenhum (contas antigas), e nunca
+ * para substituir um já cadastrado.
  */
 export function montarAlteracoes(perfil, formulario) {
   const alteracoes = {
     nome: formulario.nome,
     telefone: formulario.telefone,
-    endereco: formulario.endereco,
   };
 
   if (!perfil.documento && formulario.cpf) {
@@ -295,14 +298,14 @@ export async function salvarFotoPerfil(uid, foto) {
 }
 
 /*
- * Atualiza nome, telefone e endereço. E-mail e CPF não são enviados;
+ * Atualiza nome e telefone. O endereço não passa por aqui: muda junto
+ * com a Casa (lugares.salvarLugar). E-mail e CPF não são enviados;
  * a exceção é informar o CPF pela primeira vez (conta sem CPF).
  */
 export async function atualizarPerfil(uid, dados) {
   const perfil = {
     nome: dados.nome.trim(),
     telefone: formatarTelefone(dados.telefone),
-    endereco: dados.endereco.trim(),
   };
 
   const referenciaPerfil = doc(db, 'usuarios', uid);

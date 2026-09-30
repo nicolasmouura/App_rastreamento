@@ -4,7 +4,7 @@ import {
   getDocs,
   onSnapshot,
   serverTimestamp,
-  setDoc,
+  writeBatch,
 } from '../armazenamento/bancoLocal';
 
 import { db } from '../config/armazenamento';
@@ -59,6 +59,10 @@ export function observarLugar(uid, lugarId, callback, onErro) {
  * todos obrigatórios. latitude/longitude: posição localizada a partir
  * desse endereço (EditarLugar), não a posição atual do aparelho.
  * "endereco" guarda o mesmo endereço em uma linha, para exibir.
+ *
+ * A Casa é também o endereço do perfil (Editar informações): os dois
+ * são gravados juntos, para o marcador do mapa nunca ficar num
+ * endereço e o perfil em outro.
  */
 export async function salvarLugar(uid, lugarId, { enderecoDetalhado, latitude, longitude }) {
   const tipo = TIPOS_LUGAR.find((item) => item.id === lugarId);
@@ -78,10 +82,26 @@ export async function salvarLugar(uid, lugarId, { enderecoDetalhado, latitude, l
     longitude,
   };
 
-  await setDoc(referenciaLugar(uid, lugarId), {
+  const lote = writeBatch(db);
+
+  lote.set(referenciaLugar(uid, lugarId), {
     ...lugar,
     atualizadoEm: serverTimestamp(),
   });
+
+  if (lugarId === 'casa') {
+    lote.set(
+      doc(db, 'usuarios', uid),
+      {
+        endereco: lugar.endereco,
+        enderecoDetalhado: partes,
+        atualizadoEm: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  }
+
+  await lote.commit();
 
   return { id: lugarId, ...lugar };
 }

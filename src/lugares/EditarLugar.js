@@ -59,22 +59,35 @@ function Campo({ label, style, ...props }) {
  * "Localizar no mapa" busca as coordenadas e põe o alfinete lá, e só
  * então dá para salvar. O alfinete pode ser arrastado para ajustar.
  * Mudou o endereço → precisa localizar de novo.
+ *
+ * enderecoInicial (opcional): abre com esses campos em vez dos do lugar
+ * salvo (ex.: endereço do perfil). Se forem diferentes, pede para
+ * localizar de novo antes de salvar.
  */
-export default function EditarLugar({ tipo, lugar, posicaoAtual, onFechar, onSalvar }) {
+export default function EditarLugar({
+  tipo,
+  lugar,
+  enderecoInicial,
+  posicaoAtual,
+  onFechar,
+  onSalvar,
+}) {
   const mapaRef = useRef(null);
 
   // Lugar salvo antes dos campos separados: posição não confiável.
   const salvoCompleto = Boolean(lugar?.enderecoDetalhado);
-  const camposIniciais = salvoCompleto
+  const camposSalvos = salvoCompleto
     ? { ...ENDERECO_VAZIO, ...lugar.enderecoDetalhado }
     : ENDERECO_VAZIO;
 
-  const [campos, setCampos] = useState(camposIniciais);
+  const [campos, setCampos] = useState(
+    enderecoInicial ? { ...ENDERECO_VAZIO, ...enderecoInicial } : camposSalvos
+  );
   const [pino, setPino] = useState(
     salvoCompleto ? { latitude: lugar.latitude, longitude: lugar.longitude } : null
   );
   const [localizadoPara, setLocalizadoPara] = useState(
-    salvoCompleto ? chaveEndereco(camposIniciais) : null
+    salvoCompleto ? chaveEndereco(camposSalvos) : null
   );
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState('');
@@ -334,8 +347,9 @@ export default function EditarLugar({ tipo, lugar, posicaoAtual, onFechar, onSal
           />
 
           <Text style={styles.privacidade}>
-            O endereço e a posição são privados. Sua família vê apenas
-            "Em casa" ou a distância aproximada até a casa.
+            {tipo.id === 'casa'
+              ? 'Este também é o endereço do seu perfil, que a família vê. A posição no mapa é privada: a família vê apenas "Em casa" ou a distância aproximada até a casa.'
+              : 'O endereço e a posição são privados.'}
           </Text>
 
           {erro ? <Text style={styles.erro}>{erro}</Text> : null}

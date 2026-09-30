@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,6 +8,8 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
+import EditarLugar from '../lugares/EditarLugar';
+import { observarLugar, salvarLugar, TIPOS_LUGAR } from '../dados/lugares';
 import {
   cpfValido,
   LIMITES_PERFIL,
@@ -16,6 +18,8 @@ import {
   validarDadosEditaveis,
 } from '../dados/salvarUsuario';
 import { cores, fontes, raio } from '../theme/theme';
+
+const TIPO_CASA = TIPOS_LUGAR.find((tipo) => tipo.id === 'casa');
 
 function CampoBloqueado({ label, valor }) {
   return (
@@ -36,16 +40,30 @@ function CampoBloqueado({ label, valor }) {
   );
 }
 
-// Configurações → Editar informações. Nome, telefone e endereço são
-// editáveis; e-mail e CPF aparecem bloqueados.
-export default function EditarInformacoes({ perfil, onSalvar, onVoltar }) {
+/*
+ * Configurações → Editar informações. Nome, telefone e endereço são
+ * editáveis; e-mail e CPF aparecem bloqueados. O endereço é o da Casa:
+ * abre o mesmo formulário (EditarLugar) e é salvo na hora, junto com o
+ * marcador da casa no mapa (lugares.salvarLugar).
+ */
+export default function EditarInformacoes({
+  perfil,
+  posicaoAtual,
+  onSalvar,
+  onCasaSalva,
+  onVoltar,
+}) {
   const [dados, setDados] = useState({
     nome: perfil.nome,
     telefone: perfil.telefone,
     endereco: perfil.endereco,
+    enderecoDetalhado: perfil.enderecoDetalhado,
     cpf: '',
   });
 
+  // Casa salva (undefined = carregando).
+  const [casa, setCasa] = useState(undefined);
+  const [enderecoAberto, setEnderecoAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
@@ -53,10 +71,32 @@ export default function EditarInformacoes({ perfil, onSalvar, onVoltar }) {
   // Conta antiga sem CPF: pode informar uma única vez.
   const semCPF = !perfil.documento;
 
+  useEffect(() => {
+    return observarLugar(perfil.uid, 'casa', setCasa, (e) => {
+      console.log('Casa indisponível:', e.code || e.message);
+      setCasa(null);
+    });
+  }, [perfil.uid]);
+
   function alterarCampo(chave, valor) {
     setDados((atuais) => ({ ...atuais, [chave]: valor }));
     setErro('');
     setSucesso('');
+  }
+
+  // Chamado pelo EditarLugar, que mostra o erro se falhar.
+  async function salvarEndereco(lugar) {
+    const salvo = await salvarLugar(perfil.uid, 'casa', lugar);
+
+    setDados((atuais) => ({
+      ...atuais,
+      endereco: salvo.endereco,
+      enderecoDetalhado: salvo.enderecoDetalhado,
+    }));
+    onCasaSalva?.(salvo);
+    setEnderecoAberto(false);
+    setErro('');
+    setSucesso('Endereço salvo. A casa no mapa também foi atualizada.');
   }
 
   async function salvar() {
@@ -146,16 +186,35 @@ export default function EditarInformacoes({ perfil, onSalvar, onVoltar }) {
       />
 
       <Text style={styles.label}>Endereço</Text>
-      <TextInput
-        style={styles.input}
-        value={dados.endereco}
-        onChangeText={(valor) => alterarCampo('endereco', valor)}
-        placeholder="Rua, número, bairro, cidade - UF"
-        placeholderTextColor={cores.textoSecundario}
-        autoCapitalize="words"
-        maxLength={LIMITES_PERFIL.endereco}
-        editable={!salvando}
-      />
+      <TouchableOpacity
+        style={styles.endereco}
+        onPress={() => setEnderecoAberto(true)}
+        disabled={salvando || casa === undefined}
+      >
+        <Text
+          style={[styles.enderecoTexto, !dados.endereco && styles.enderecoVazio]}
+          numberOfLines={3}
+        >
+          {dados.endereco || 'Toque para preencher (país, cidade, rua...)'}
+        </Text>
+
+        <Feather name="edit-2" size={16} color={cores.primaria} />
+      </TouchableOpacity>
+
+      <Text style={styles.dica}>
+        É o endereço da sua casa no mapa: os dois mudam juntos.
+      </Text>
+
+      {enderecoAberto ? (
+        <EditarLugar
+          tipo={TIPO_CASA}
+          lugar={casa}
+          enderecoInicial={dados.enderecoDetalhado}
+          posicaoAtual={posicaoAtual}
+          onFechar={() => setEnderecoAberto(false)}
+          onSalvar={salvarEndereco}
+        />
+      ) : null}
 
       {erro ? <Text style={styles.erro}>{erro}</Text> : null}
 
@@ -246,6 +305,29 @@ const styles = StyleSheet.create({
 
   cadeadoTexto: {
     fontSize: 12,
+    color: cores.textoSecundario,
+  },
+
+  endereco: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: cores.borda,
+    borderRadius: raio.botaoSecundario + 4,
+    padding: 14,
+    marginBottom: 16,
+    backgroundColor: cores.superficie,
+  },
+
+  enderecoTexto: {
+    flex: 1,
+    fontSize: 16,
+    color: cores.texto,
+  },
+
+  enderecoVazio: {
     color: cores.textoSecundario,
   },
 

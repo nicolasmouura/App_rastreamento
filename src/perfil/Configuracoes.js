@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
+  Linking,
   StyleSheet,
   Switch,
   Text,
@@ -11,9 +13,17 @@ import {
 } from 'react-native';
 
 import { Feather } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { biometriaDisponivel } from '../dados/biometria';
+import {
+  estadoPermissao,
+  lerPreferencias,
+  notificar,
+  pedirPermissao,
+  PREFERENCIAS_PADRAO,
+  salvarPreferencias,
+  TIPOS_NOTIFICACAO,
+} from '../dados/notificacoes';
 import EditarInformacoes from './EditarInformacoes';
 import MeusLugares from '../lugares/MeusLugares';
 import { cores, fontes } from '../theme/theme';
@@ -41,56 +51,11 @@ const ITENS = [
   },
 ];
 
-const TIPOS_NOTIFICACAO = [
-  {
-    chave: 'solicitacoes',
-    titulo: 'Solicitações de entrada',
-    descricao:
-      'Avisar quando alguém solicitar entrar na sua família.',
-    icone: 'user-plus',
-  },
-  {
-    chave: 'aprovacoes',
-    titulo: 'Solicitações aprovadas',
-    descricao:
-      'Avisar quando sua entrada em uma família for aprovada.',
-    icone: 'check-circle',
-  },
-  {
-    chave: 'recusas',
-    titulo: 'Solicitações recusadas',
-    descricao:
-      'Avisar quando sua solicitação de entrada for recusada.',
-    icone: 'x-circle',
-  },
-  {
-    chave: 'novosMembros',
-    titulo: 'Novos membros',
-    descricao:
-      'Avisar quando um novo membro entrar na sua família.',
-    icone: 'users',
-  },
-  {
-    chave: 'localizacaoAtualizada',
-    titulo: 'Atualizações de localização',
-    descricao:
-      'Avisar quando a localização de um familiar for atualizada.',
-    icone: 'map-pin',
-  },
-];
-
-const CONFIGURACOES_PADRAO = {
-  solicitacoes: true,
-  aprovacoes: true,
-  recusas: true,
-  novosMembros: true,
-  localizacaoAtualizada: true,
-};
-
 export default function Configuracoes({
   usuario,
   perfil,
   onSalvarPerfil,
+  onCasaSalva,
   posicaoAtual,
   onSair,
 }) {
@@ -104,8 +69,11 @@ export default function Configuracoes({
     useState(false);
 
   const [notificacoes, setNotificacoes] = useState(
-    CONFIGURACOES_PADRAO
+    PREFERENCIAS_PADRAO
   );
+
+  // Permissão do aparelho: null = verificando.
+  const [permissao, setPermissao] = useState(null);
 
   const [segurancaAberta, setSegurancaAberta] =
     useState(false);
@@ -113,41 +81,30 @@ export default function Configuracoes({
   // null = carregando
   const [biometriaOk, setBiometriaOk] = useState(null);
 
-  const chaveNotificacoes = usuario?.uid
-    ? `@appintegrado:notificacoes:${usuario.uid}`
-    : null;
+  const uid = usuario?.uid;
 
   useEffect(() => {
-    async function carregarConfiguracoes() {
-      if (!chaveNotificacoes) {
-        setNotificacoes(CONFIGURACOES_PADRAO);
-        return;
-      }
-
-      try {
-        const configuracoesSalvas =
-          await AsyncStorage.getItem(chaveNotificacoes);
-
-        if (configuracoesSalvas) {
-          setNotificacoes({
-            ...CONFIGURACOES_PADRAO,
-            ...JSON.parse(configuracoesSalvas),
-          });
-        } else {
-          setNotificacoes(CONFIGURACOES_PADRAO);
-        }
-      } catch (error) {
-        console.error(
-          'Erro ao carregar configurações de notificações:',
-          error
-        );
-
-        setNotificacoes(CONFIGURACOES_PADRAO);
-      }
+    if (!uid) {
+      setNotificacoes(PREFERENCIAS_PADRAO);
+      return;
     }
 
-    carregarConfiguracoes();
-  }, [chaveNotificacoes]);
+    lerPreferencias(uid).then(setNotificacoes);
+  }, [uid]);
+
+  // Com a tela de notificações aberta, confere a permissão também
+  // ao voltar das configurações do aparelho.
+  useEffect(() => {
+    if (!notificacoesAbertas) return undefined;
+
+    estadoPermissao().then(setPermissao);
+
+    const assinatura = AppState.addEventListener('change', (estado) => {
+      if (estado === 'active') estadoPermissao().then(setPermissao);
+    });
+
+    return () => assinatura.remove();
+  }, [notificacoesAbertas]);
 
   async function alternarNotificacao(chave) {
     const novasConfiguracoes = {
@@ -157,21 +114,47 @@ export default function Configuracoes({
 
     setNotificacoes(novasConfiguracoes);
 
-    if (!chaveNotificacoes) {
+    if (!uid) {
       return;
     }
 
     try {
-      await AsyncStorage.setItem(
-        chaveNotificacoes,
-        JSON.stringify(novasConfiguracoes)
-      );
+      await salvarPreferencias(uid, novasConfiguracoes);
     } catch (error) {
       console.error(
         'Erro ao salvar configurações de notificações:',
         error
       );
     }
+  }
+
+  async function permitirNotificacoes() {
+    if (permissao && !permissao.podePedir) {
+      Linking.openSettings();
+      return;
+    }
+
+    await pedirPermissao();
+    setPermissao(await estadoPermissao());
+  }
+
+  async function testarNotificacao() {
+    const permitido = await pedirPermissao();
+
+    setPermissao(await estadoPermissao());
+
+    if (!permitido) {
+      Alert.alert(
+        'Notificações bloqueadas',
+        'Permita as notificações do Conecta nas configurações do aparelho.'
+      );
+      return;
+    }
+
+    await notificar({
+      titulo: 'Conecta',
+      corpo: 'As notificações estão funcionando.',
+    });
   }
 
   function tocarOpcao(chave) {
@@ -237,6 +220,7 @@ export default function Configuracoes({
       <MeusLugares
         usuario={usuario}
         posicaoAtual={posicaoAtual}
+        onCasaSalva={onCasaSalva}
         onVoltar={() => setLugaresAberto(false)}
       />
     );
@@ -246,7 +230,9 @@ export default function Configuracoes({
     return (
       <EditarInformacoes
         perfil={perfil}
+        posicaoAtual={posicaoAtual}
         onSalvar={onSalvarPerfil}
+        onCasaSalva={onCasaSalva}
         onVoltar={() => setEditarAberto(false)}
       />
     );
@@ -353,6 +339,31 @@ export default function Configuracoes({
           Escolha quais notificações você deseja receber.
         </Text>
 
+        {permissao && !permissao.permitido ? (
+          <View style={styles.bloqueio}>
+            <Feather
+              name="bell-off"
+              size={18}
+              color={cores.erro}
+            />
+
+            <View style={styles.notificacaoConteudo}>
+              <Text style={styles.bloqueioTexto}>
+                As notificações do Conecta estão desativadas
+                neste aparelho.
+              </Text>
+
+              <TouchableOpacity onPress={permitirNotificacoes}>
+                <Text style={styles.link}>
+                  {permissao.podePedir
+                    ? 'Permitir notificações'
+                    : 'Abrir configurações do aparelho'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
+
         {TIPOS_NOTIFICACAO.map((item) => (
           <View
             key={item.chave}
@@ -389,6 +400,21 @@ export default function Configuracoes({
             />
           </View>
         ))}
+
+        <TouchableOpacity
+          style={styles.teste}
+          onPress={testarNotificacao}
+        >
+          <Feather
+            name="send"
+            size={16}
+            color={cores.primaria}
+          />
+
+          <Text style={styles.link}>
+            Enviar notificação de teste
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -554,5 +580,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: cores.textoSecundario,
     lineHeight: 17,
+  },
+
+  bloqueio: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: cores.erro,
+    borderRadius: 12,
+  },
+
+  bloqueioTexto: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: cores.texto,
+    marginBottom: 6,
+  },
+
+  link: {
+    fontSize: 14,
+    fontFamily: fontes.destaque,
+    color: cores.primaria,
+  },
+
+  teste: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 8,
+    paddingVertical: 16,
   },
 });
