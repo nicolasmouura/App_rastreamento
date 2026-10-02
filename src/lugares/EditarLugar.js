@@ -35,9 +35,19 @@ const REGIAO_BRASIL = {
   longitudeDelta: 30,
 };
 
-// Identifica o endereço que o alfinete representa.
-function chaveEndereco(campos) {
-  return JSON.stringify(limparEndereco(campos));
+/*
+ * Os campos ainda são o endereço onde o alfinete foi posto? Completar
+ * um campo que veio vazio (ex.: o número que o mapa não achou) não
+ * conta como mudança.
+ */
+function mesmoEndereco(campos, localizadoPara) {
+  if (!localizadoPara) return false;
+
+  const atual = limparEndereco(campos);
+
+  return Object.entries(localizadoPara).every(
+    ([chave, valor]) => !valor || valor === atual[chave]
+  );
 }
 
 function Campo({ label, style, ...props }) {
@@ -57,8 +67,9 @@ function Campo({ label, style, ...props }) {
  * Cadastrar/editar um lugar (Casa). A posição vem do endereço
  * DIGITADO (País, Estado, Cidade, Bairro, Rua, Número e CEP):
  * "Localizar no mapa" busca as coordenadas e põe o alfinete lá, e só
- * então dá para salvar. O alfinete pode ser arrastado para ajustar.
- * Mudou o endereço → precisa localizar de novo.
+ * então dá para salvar. O alfinete pode ser arrastado para ajustar, e
+ * os campos passam a ser o endereço do novo ponto. Mudou o endereço →
+ * precisa localizar de novo (completar um campo vazio não conta).
  *
  * enderecoInicial (opcional): abre com esses campos em vez dos do lugar
  * salvo (ex.: endereço do perfil). Se forem diferentes, pede para
@@ -87,12 +98,12 @@ export default function EditarLugar({
     salvoCompleto ? { latitude: lugar.latitude, longitude: lugar.longitude } : null
   );
   const [localizadoPara, setLocalizadoPara] = useState(
-    salvoCompleto ? chaveEndereco(camposSalvos) : null
+    salvoCompleto ? limparEndereco(camposSalvos) : null
   );
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState('');
 
-  const localizado = pino !== null && localizadoPara === chaveEndereco(campos);
+  const localizado = pino !== null && mesmoEndereco(campos, localizadoPara);
   const brasil = ehBrasil(campos.pais);
 
   const [regiaoInicial] = useState(() => {
@@ -115,12 +126,31 @@ export default function EditarLugar({
     mapaRef.current?.animateToRegion({ ...coordenadas, ...ZOOM_LUGAR }, 600);
   }
 
-  // Ajuste fino: só depois que o endereço já foi localizado.
-  function moverPino(coordenadas) {
-    if (!pino) return;
+  // Ajuste fino: só depois que o endereço já foi localizado. Os campos
+  // viram o endereço do novo ponto; o que o mapa não achar (ex.: o
+  // número) fica em branco para completar.
+  async function moverPino(coordenadas) {
+    if (!pino || ocupado) return;
 
     setPino(coordenadas);
+    setOcupado(true);
     setErro('');
+
+    const encontrado = enderecoDoResultado(await buscarEndereco(coordenadas));
+
+    setOcupado(false);
+
+    if (!encontrado) {
+      setErro('Não foi possível buscar o endereço desse ponto. Confira os campos.');
+      return;
+    }
+
+    setCampos(encontrado);
+    setLocalizadoPara(limparEndereco(encontrado));
+
+    if (validarEndereco(encontrado)) {
+      setErro('Confira o endereço e complete os campos que faltam.');
+    }
   }
 
   async function localizar() {
@@ -146,7 +176,7 @@ export default function EditarLugar({
     }
 
     setPino(encontrado);
-    setLocalizadoPara(chaveEndereco(alvo));
+    setLocalizadoPara(limparEndereco(alvo));
     centralizar(encontrado);
   }
 
@@ -178,7 +208,7 @@ export default function EditarLugar({
 
     setCampos(novos);
     setPino(coordenadas);
-    setLocalizadoPara(chaveEndereco(novos));
+    setLocalizadoPara(limparEndereco(novos));
     centralizar(coordenadas);
 
     if (validarEndereco(novos)) {
@@ -242,7 +272,7 @@ export default function EditarLugar({
             {pino && (
               <Marker
                 coordinate={pino}
-                draggable
+                draggable={!ocupado}
                 onDragEnd={(evento) => moverPino(evento.nativeEvent.coordinate)}
                 pinColor={localizado ? cores.primaria : cores.textoSecundario}
               />
